@@ -9,7 +9,7 @@ pinfo_file = '/media/martijn/DATA/Onderwijs/HN/clin_t.txt'
 
 
 def load_label_txt(input_file):
-    data = np.loadtxt(input_file, np.str)
+    data = np.loadtxt(input_file, str)
 
     # Load and check the header
     header = data[0, :]
