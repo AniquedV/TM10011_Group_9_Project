@@ -77,7 +77,8 @@ import pandas as pd
 from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn import neighbors
-
+from xgboost import XGBClassifier
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
 
 
 data['label_bin'] = LabelEncoder().fit_transform(data['label'])
@@ -86,9 +87,12 @@ print(data[['label', 'label_bin']].head())
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
+X_array = X.values
+y_array = y.values
+
 # Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
 )
 
 # Scale features
@@ -96,6 +100,66 @@ scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
+
+
+
+param_grid = {
+    "n_estimators": [50, 100, 200],
+    "max_depth": [3, 4, 6],
+    "learning_rate": [0.01, 0.1, 0.2],
+    "subsample": [0.8, 1.0]
+}
+
+cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
+model = XGBClassifier(
+    use_label_encoder=False,
+    eval_metric='logloss',
+    random_state=42
+)
+
+grid_search = GridSearchCV(
+    estimator=model,
+    param_grid=param_grid,
+    cv=cv_inner,
+    scoring='roc_auc',
+    n_jobs=-1
+)
+
+grid_search.fit(X_train, y_train)
+
+print("Best parameters:")
+print(grid_search.best_params_)
+
+#%% BEST MODEL (trained on train folds)
+best_model = grid_search.best_estimator_
+
+
+#%% CROSS-VAL PERFORMANCE OP TRAIN
+cv_scores = model_selection.cross_val_score(
+    best_model,
+    X_train,
+    y_train,
+    cv=cv_inner,
+    scoring='roc_auc'
+)
+
+print(f"CV AUC (train): {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+
+#%% TESTSET
+
+y_test_probs = best_model.predict_proba(X_test)[:, 1]
+auc_test = metrics.roc_auc_score(y_test, y_test_probs)
+
+print(f"\nTEST AUC: {auc_test:.3f}")
+
+
+
+
+
+
+
+'''
 # Train KNN classifier op geschaalde data
 clf_knn = neighbors.KNeighborsClassifier(n_neighbors=15)
 clf_knn.fit(X_train_scaled, y_train)
@@ -172,3 +236,4 @@ sns.boxplot(y='auc', x='set', data=results)
 
 optimal_n = int(np.median(best_n_neighbors))
 print(f"The optimal N={optimal_n}")
+'''
