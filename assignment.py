@@ -28,7 +28,7 @@ print(f"Number of rows after checking for duplicates: {len(data)}")
 
 #%%
 """Checking for missing values"""
-data_missing_values = data.replace('0.0', np.nan)
+data_missing_values = data.replace('0', np.nan)
 missing_values = data[data.isnull().any(axis=1)]
 
 if not missing_values.empty:
@@ -54,15 +54,28 @@ print(f'The number of samples: {len(data.index)}')
 
 print(f'The number of columns: {len(data.columns)}')
 #%%
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from sklearn.preprocessing import RobustScaler
+from sklearn.decomposition import PCA
+from scipy.cluster.hierarchy import linkage, dendrogram
+from sklearn.manifold import TSNE
+from sklearn.model_selection import train_test_split
+from scipy.stats import shapiro, normaltest, skew, kurtosis
+from sklearn import neighbors
+from sklearn.preprocessing import LabelEncoder
+from sklearn import model_selection, metrics
+import seaborn
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn import neighbors
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import StratifiedKFold
-import seaborn
+from xgboost import XGBClassifier
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
 
 
 
@@ -90,11 +103,58 @@ X_train_scaled = scaler.fit_transform(X_train_validatie)
 X_test_scaled = scaler.transform(X_test_validatie)
 
 
-scaler = preprocessing.StandardScaler()
-scaler.fit(X)
-X_scaled = scaler.transform(X)
+
 #%%
 
+param_grid = {
+    "n_estimators": [50, 100, 200],
+    "max_depth": [3, 4, 6],
+    "learning_rate": [0.01, 0.1, 0.2],
+    "subsample": [0.8, 1.0]
+}
+
+cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
+model = XGBClassifier(
+    use_label_encoder=False,
+    eval_metric='logloss',
+    random_state=42
+)
+
+grid_search = GridSearchCV(
+    estimator=model,
+    param_grid=param_grid,
+    cv=cv_inner,
+    scoring='roc_auc',
+    n_jobs=-1
+)
+
+grid_search.fit(X_train, y_train)
+
+print("Best parameters:")
+print(grid_search.best_params_)
+
+#%% BEST MODEL (trained on train folds)
+best_model = grid_search.best_estimator_
+
+
+#%% CROSS-VAL PERFORMANCE OP TRAIN
+cv_scores = model_selection.cross_val_score(
+    best_model,
+    X_train,
+    y_train,
+    cv=cv_inner,
+    scoring='roc_auc'
+)
+
+print(f"CV AUC (train): {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+
+#%% TESTSET
+
+y_test_probs = best_model.predict_proba(X_test)[:, 1]
+auc_test = metrics.roc_auc_score(y_test, y_test_probs)
+
+print(f"\nTEST AUC: {auc_test:.3f}")
 
 # from xgboost import XGBClassifier
 # from sklearn.model_selection import train_test_split, RandomizedSearchCV, StratifiedKFold
@@ -269,18 +329,4 @@ seaborn.boxplot(y='auc', x='set', data=results)
 
 optimal_n = int(np.median(best_n_neighbors))
 print(f"The optimal N={optimal_n}")
-
-#%%
-
-# from xgboost import XGBClassifier
-# from sklearn.model_selection import train_test_split
-
-# X_train, X_test, y_train, y_test = train_test_split(data['data'], data['target'], test_size=.2)
-# # create model instance
-# bst = XGBClassifier(n_estimators=2, max_depth=2, learning_rate=1, objective='binary:logistic')
-# # fit model
-# bst.fit(X_train, y_train)
-# # make predictions
-# preds = bst.predict(X_test)
-
 
