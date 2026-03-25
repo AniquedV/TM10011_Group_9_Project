@@ -32,6 +32,72 @@ from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import learning_curve
+from sklearn.metrics import accuracy_score, recall_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import roc_curve, auc
+
+#functions we will use
+def plot_learning_curve(estimator, title, X, y, axes, ylim=None, cv=None,
+                        n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
+
+    axes.set_title(title)
+    if ylim is not None:
+        axes.set_ylim(*ylim)
+    axes.set_xlabel("Training examples")
+    axes.set_ylabel("Score")
+
+    train_sizes, train_scores, test_scores = learning_curve(
+        estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes, scoring='roc_auc'
+    )
+
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+
+    axes.grid()
+    axes.fill_between(train_sizes,
+                      train_scores_mean - train_scores_std,
+                      train_scores_mean + train_scores_std,
+                      alpha=0.1)
+
+    axes.fill_between(train_sizes,
+                      test_scores_mean - test_scores_std,
+                      test_scores_mean + test_scores_std,
+                      alpha=0.1)
+
+    axes.plot(train_sizes, train_scores_mean, 'o-', label="Training AUC")
+    axes.plot(train_sizes, test_scores_mean, 'o-', label="Validation AUC")
+
+    axes.legend(loc="best")
+
+    return axes
+
+def plot_roc_curve(y_score, y_truth):
+    '''
+    Plot an ROC curve.
+    '''
+    # Only take scores for class = 1
+    y_score = y_score[:, 1]
+
+    fpr, tpr, _ = roc_curve(y_truth, y_score)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure(figsize=(7,5))
+    plt.plot(fpr, tpr,
+             lw=2, label='ROC curve (AUC = %0.3f)' % roc_auc)
+    plt.plot([0, 1], [0, 1],
+             lw=1, linestyle='--', label='Random Guess')
+
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve (Random Forest)')
+    plt.legend(loc="lower right")
+    plt.grid(True)
+    plt.show()
 
 # Prepare data
 data['label_bin'] = LabelEncoder().fit_transform(data['label'])
@@ -48,10 +114,10 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = RandomForestClassifier(random_state=42)
 
 param_grid = {
-    "n_estimators": [50, 100, 200],
+    "n_estimators": [50, 100, 150],
     "max_depth": [3, 5, 10],
-    "min_samples_leaf": [1, 3, 5],
-    "min_samples_split": [2, 5, 10]
+    "min_samples_leaf": [3, 5, 7],
+    "min_samples_split": [3, 5, 10]
 }
 
 #%% GridSearch WITH cross-validation (only on training data!)
@@ -73,9 +139,37 @@ best_model = grid.best_estimator_
 
 print("Best parameters:", grid.best_params_)
 
+# learning curve
+#%% Learning curve (new version)
+fig, ax = plt.subplots(figsize=(7,5))
+
+plot_learning_curve(
+    estimator=best_model,
+    title="Learning Curve (Random Forest)",
+    X=X_train,
+    y=y_train,
+    axes=ax,
+    cv=5,
+    n_jobs=-1,
+    train_sizes=np.linspace(0.1, 1.0, 10)
+)
+
+plt.grid()
+plt.show()
 #%% Final evaluation on TEST set (20%)
-y_test_probs = best_model.predict_proba(X_test)[:, 1]
-auc_test = roc_auc_score(y_test, y_test_probs)
+y_test_probs = best_model.predict_proba(X_test)
+auc_test = roc_auc_score(y_test, y_test_probs[:, 1])
 
 print("Final Test AUC:", auc_test)
 
+#Performance scores
+y_test_pred = best_model.predict(X_test)
+tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+accuracy = accuracy_score(y_test, y_test_pred)
+sensitivity = recall_score(y_test, y_test_pred)  # same as tp / (tp+fn)
+specificity = tn / (tn + fp)
+print("accuracy:", accuracy)
+print("sensitivity:", sensitivity)
+print("specificity:", specificity)
+
+plot_roc_curve(y_test_probs, y_test)
