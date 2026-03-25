@@ -112,8 +112,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-
-
 # Define model
 model = RandomForestClassifier(random_state=42)
 
@@ -126,7 +124,7 @@ param_distributions = {
 }
 
 # Stratified CV
-cv_inner = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 
 #%% RandomizedSearchCV
 random_search = RandomizedSearchCV(
