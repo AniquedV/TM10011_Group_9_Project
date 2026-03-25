@@ -36,8 +36,10 @@ from sklearn.model_selection import learning_curve
 from sklearn.metrics import accuracy_score, recall_score
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import roc_curve, auc
+from scipy.stats import randint
+from sklearn.model_selection import RandomizedSearchCV
 
-#functions we will use
+# Functions we will use
 def plot_learning_curve(estimator, title, X, y, axes, ylim=None, cv=None,
                         n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
 
@@ -110,37 +112,41 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-#%% Define model
+
+
+# Define model
 model = RandomForestClassifier(random_state=42)
 
-param_grid = {
-    "n_estimators": [50, 100, 150],
-    "max_depth": [3, 5, 10],
-    "min_samples_leaf": [3, 5, 7],
-    "min_samples_split": [3, 5, 10]
+# Define hyperparameter distributions for RandomizedSearch
+param_distributions = {
+    "n_estimators": randint(50, 200),         #number of trees
+    "max_depth": randint(2, 10),              #max depth of trees
+    "min_samples_split": randint(2, 20),      #min samples to split
+    "min_samples_leaf": randint(1, 20),       #min samples per leaf
 }
 
-#%% GridSearch WITH cross-validation (only on training data!)
-cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+# Stratified CV
+cv_inner = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-grid = GridSearchCV(
+#%% RandomizedSearchCV
+random_search = RandomizedSearchCV(
     estimator=model,
-    param_grid=param_grid,
-    cv=cv_inner,
+    param_distributions=param_distributions,
+    n_iter=20,                  # amount of random iterations
     scoring='roc_auc',
+    cv=cv_inner,
+    random_state=42,
     n_jobs=-1
 )
 
-# FIRST fit
-grid.fit(X_train, y_train)
+# Fit RandomizedSearchCV on training data
+random_search.fit(X_train, y_train)
 
-# THEN get best model
-best_model = grid.best_estimator_
+# Get the best model
+best_model = random_search.best_estimator_
+print("Best parameters:", random_search.best_params_)
 
-print("Best parameters:", grid.best_params_)
-
-# learning curve
-#%% Learning curve (new version)
+#%% Learning curve 
 fig, ax = plt.subplots(figsize=(7,5))
 
 plot_learning_curve(
@@ -156,13 +162,13 @@ plot_learning_curve(
 
 plt.grid()
 plt.show()
-#%% Final evaluation on TEST set (20%)
+#%% Final evaluation on test set
 y_test_probs = best_model.predict_proba(X_test)
 auc_test = roc_auc_score(y_test, y_test_probs[:, 1])
 
 print("Final Test AUC:", auc_test)
 
-#Performance scores
+# Performance scores
 y_test_pred = best_model.predict(X_test)
 tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
 accuracy = accuracy_score(y_test, y_test_pred)
@@ -172,4 +178,5 @@ print("accuracy:", accuracy)
 print("sensitivity:", sensitivity)
 print("specificity:", specificity)
 
+# ROC curve
 plot_roc_curve(y_test_probs, y_test)
