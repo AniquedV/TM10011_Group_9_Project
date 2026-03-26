@@ -88,8 +88,6 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 
 
-
-
 data['label_bin'] = LabelEncoder().fit_transform(data['label'])
 print(data[['label', 'label_bin']].head())
 
@@ -106,11 +104,12 @@ scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
+print(X.shape, y.shape)
 
 
 #%%
 
-#pca needed for visualization, needs 2 components, so pca to reducxe to 2 dimensions
+#pca needed for visualization, needs 2 components, so pca to reducxe to 2 dimensions, should be ran individually from rest of code, next part wont run after this, as its then pca
 pca = PCA(n_components=2)
 X_train_2D = pca.fit_transform(X_train_scaled)
 
@@ -153,64 +152,69 @@ for clf in clsfs:
         num += 1
 
 # Note: you may get a FutureWarning, which you can for now just ignore
-
+print(X.shape, y.shape)
 #%% crossvalidatie, nu nog knn
+                  
+print(X.shape, y.shape)
 #X2 en y2 maken
 X_scaled = scaler.fit_transform(X)
 y_array = y.values
-# Create a 20 fold stratified CV iterator
-cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+print(X_scaled.shape, y_array.shape)
+
+# Create a 10 fold stratified CV iterator, of 20? voor nu 10
+cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 results = []
-best_n_neighbors = []
 
 param_grid = {"n_neighbors": list(range(1,26,2))}
 
-# Loop over the folds for knn, not needed
+#parameters voor svm
+svm_clfs = [
+    ("linear", SVC(kernel='linear', C=1.0, gamma='scale', probability=True)),
+    ("poly",   SVC(kernel='poly', degree=3, coef0=1, C=1.0, gamma='scale', probability=True)),
+    ("rbf",    SVC(kernel='rbf', C=1.0, gamma='scale', probability=True))
+]
 
-for train_index, test_index in cv_20fold.split(X_scaled, y_array):
-    # Split the data properly
-    X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
-    y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
+for name, base_clf in svm_clfs:
+    print(f"{name} SVM")
+    results = []
+    # Loop over the folds
+    for train_index, test_index in cv_10fold.split(X_scaled, y_array):
+        # Split the data properly
+        X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
+        y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
 
-    # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
-    # Same as above
-    knn = neighbors.KNeighborsClassifier()
-    cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    grid_search = model_selection.GridSearchCV(knn, param_grid, cv=cv_10fold, scoring='roc_auc')
-    grid_search.fit(X_cv_train, y_cv_train)
+        # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
+        # Same as above
+        # SVM versions, can be changed under parameters for svm
+        clf = base_clf
+        clf.fit(X_cv_train, y_cv_train)
 
-    # Get resulting classifier
-    clf = grid_search.best_estimator_
-    best_n_neighbors.append(clf.n_neighbors)
-    print(f'best k in fold: {clf.n_neighbors}')
 
-    # Test the classifier on the test data
-    y_probs = clf.predict_proba(X_cv_test)[:,1]
+        # Test the classifier on the test data
+        y_probs = clf.predict_proba(X_cv_test)[:,1]
 
-    # Get the auc
-    auc = metrics.roc_auc_score(y_cv_test, y_probs)
-    results.append({
-        'auc': auc,
-        'k': clf.n_neighbors,
-        'set': 'test'
-    })
+        # Get the auc
+        auc = metrics.roc_auc_score(y_cv_test, y_probs)
+        results.append({
+            'auc': auc,
+            'set': 'test'
+        })
 
-    # Test the classifier on the validation data
-    y_train_probs = clf.predict_proba(X_cv_train)[:,1]
-    auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
-    results.append({
-        'auc': auc_train,
-        'k': clf.n_neighbors,
-        'set': 'train'
-    })
+        # Test the classifier on the validation data
+        y_train_probs = clf.predict_proba(X_cv_train)[:,1]
+        auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
+        results.append({
+            'auc': auc_train,
+            'set': 'train'
+        })
 
-    
-# Create results dataframe and plot it
-results = pd.DataFrame(results)
-sns.boxplot(y='auc', x='set', data=results)
 
-optimal_n = int(np.median(best_n_neighbors))
-print(f"The optimal N={optimal_n}")
+    # Convert results to DataFrame and plot
+    results_df = pd.DataFrame(results)
+    sns.boxplot(y='auc', x='set', data=results_df)
+    plt.title(f"{name} SVM")
+    plt.show()
+
 #%% learning curve en roc curve 
 from sklearn.model_selection import learning_curve
 from sklearn.metrics import roc_curve, auc
@@ -350,3 +354,17 @@ for name, clf in clsfs:
 
     print(f"ROC curve for {name}")
     plot_roc_curve(y_score, y_test)
+
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(8,6))
+plot_learning_curve(svmlin, "Learning Curve: SVM Linear", X_train_scaled, y_train, ax, cv=10)
+plt.show()
+
+fig, ax = plt.subplots(figsize=(8,6))
+plot_learning_curve(svmpoly, "Learning Curve: SVM Poly", X_train_scaled, y_train, ax, cv=10)
+plt.show()
+
+fig, ax = plt.subplots(figsize=(8,6))
+plot_learning_curve(svmrbf, "Learning Curve: SVM RBF", X_train_scaled, y_train, ax, cv=10)
+plt.show()
