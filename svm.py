@@ -27,8 +27,6 @@ from scipy.cluster.hierarchy import linkage, dendrogram
 from sklearn.manifold import TSNE
 from sklearn.model_selection import train_test_split
 from scipy.stats import shapiro, normaltest, skew, kurtosis
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
@@ -41,7 +39,11 @@ svmlin = SVC(kernel='linear', gamma='scale')
 svmrbf = SVC(kernel='rbf', gamma='scale')
 svmpoly = SVC(kernel='poly', degree=3, gamma='scale')
 
-clsfs = [KNeighborsClassifier(), RandomForestClassifier(), svmlin, svmpoly, svmrbf]
+clsfs = [
+    ("SVM linear", svmlin),
+    ("SVM poly", svmpoly),
+    ("SVM rbf", svmrbf)
+]
 
 #wordt niet meer gebruikt
 def colorplot(clf, ax, x, y, h=100):
@@ -84,7 +86,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
-from sklearn import neighbors
+
 
 
 
@@ -104,42 +106,55 @@ scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-svmlin = SVC(kernel='linear', gamma='scale', probability=True)
-svmrbf = SVC(kernel='rbf', gamma='scale', probability=True)
-svmpoly = SVC(kernel='poly', degree=3, gamma='scale', probability=True)
 
-clsfs = [
-    ("KNN", KNeighborsClassifier(n_neighbors=15)),
-    ("Random Forest", RandomForestClassifier()),
-    ("SVM linear", svmlin),
-    ("SVM poly", svmpoly),
-    ("SVM rbf", svmrbf)
-]
-
-# Plot
-fig = plt.figure(figsize=(8, 8 * len(clsfs)))
-
-for i, (name, clf) in enumerate(clsfs):
-    clf.fit(X_train_scaled, y_train)
-
-    score_train = clf.score(X_train_scaled, y_train)
-
-    ax = fig.add_subplot(len(clsfs), 1, i + 1)
-    ax.set_title(f"{name} - Training accuracy: {score_train:.3f}")
-
-    # Plot points
-    ax.scatter(
-        X_train_scaled[:, 0],
-        X_train_scaled[:, 1],
-        marker='o',
-        c=y_train,
-        s=25,
-        edgecolor='k',
-        cmap=plt.cm.Paired
-    )
-plt.show()
 
 #%%
+
+#pca needed for visualization, needs 2 components, so pca to reducxe to 2 dimensions
+pca = PCA(n_components=2)
+X_train_2D = pca.fit_transform(X_train_scaled)
+
+Xs = [X_train_2D]
+Ys = [y_train.values]
+
+
+# Construct classifiers
+degrees = [1, 3, 5]
+coef0s = [0.01, 0.5, 1]
+slacks = [0.01, 0.5, 1]
+
+clsfs = list()
+for degree in degrees:
+    for coef0 in coef0s:
+        for slack in slacks:
+            clsfs.append(SVC(kernel='poly', degree=degree, coef0=coef0, C=slack, gamma='scale'))
+
+# First make plot without classifiers:
+num = 0
+fig = plt.figure(figsize=(24,8*len(clsfs)))
+for X, Y in zip(Xs, Ys):
+    ax = fig.add_subplot(len(clsfs) + 1, 3, num + 1)
+    ax.scatter(X[:, 0], X[:, 1], marker='o', c=Y,
+        s=25, edgecolor='k', cmap=plt.cm.Paired)
+    num += 1
+
+# Now use the classifiers on all datasets
+for clf in clsfs:
+    for X, Y in zip(Xs, Ys):
+        clf.fit(X, Y)
+        ax = fig.add_subplot(len(clsfs) + 1, 3, num + 1)
+        ax.scatter(X[:, 0], X[:, 1], marker='o', c=Y,
+            s=25, edgecolor='k', cmap=plt.cm.Paired)
+        colorplot(clf, ax, X[:, 0], X[:, 1])
+        y_pred = clf.predict(X)
+        t = f"degree: {clf.degree}, coef0: {clf.coef0}, C: {clf.C}. "
+        t = t + ("Misclassified: %d / %d" % ((Y != y_pred).sum(), X.shape[0]))
+        ax.set_title(t)
+        num += 1
+
+# Note: you may get a FutureWarning, which you can for now just ignore
+
+#%% crossvalidatie, nu nog knn
 #X2 en y2 maken
 X_scaled = scaler.fit_transform(X)
 y_array = y.values
@@ -150,7 +165,8 @@ best_n_neighbors = []
 
 param_grid = {"n_neighbors": list(range(1,26,2))}
 
-# Loop over the folds
+# Loop over the folds for knn, not needed
+
 for train_index, test_index in cv_20fold.split(X_scaled, y_array):
     # Split the data properly
     X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
@@ -195,11 +211,18 @@ sns.boxplot(y='auc', x='set', data=results)
 
 optimal_n = int(np.median(best_n_neighbors))
 print(f"The optimal N={optimal_n}")
-
 #%% learning curve en roc curve 
 from sklearn.model_selection import learning_curve
 from sklearn.metrics import roc_curve, auc
 
+#reset clsfs, as it got changed trying hyperparemters for poly SVM
+clsfs = [
+    ("SVM linear", svmlin),
+    ("SVM poly", svmpoly),
+    ("SVM rbf", svmrbf)
+]
+
+print(clsfs)
 def plot_learning_curve(estimator, title, X, y, axes, ylim=None, cv=None,
                         n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
     """
@@ -327,4 +350,3 @@ for name, clf in clsfs:
 
     print(f"ROC curve for {name}")
     plot_roc_curve(y_score, y_test)
-    
