@@ -19,7 +19,7 @@ print(f'The number of columns: {len(data.columns)}')
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import seaborn as sns
+import seaborn
 from sklearn.preprocessing import RobustScaler
 from sklearn.decomposition import PCA
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -29,7 +29,6 @@ from scipy.stats import shapiro, normaltest, skew, kurtosis
 from sklearn import neighbors
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
-import seaborn
 from scipy import stats
 
 
@@ -45,48 +44,49 @@ data['label_bin'] = LabelEncoder().fit_transform(data['label'])
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
-#Stukje over missing data
+#%%
 
-X = X.replace(0.0, np.nan)
-col_missing_percentage = X.isnull().mean() * 100
-
-X = X.dropna(axis=1, thresh=len(X)*0.5)  # verwijder kolommen met >50% missende waarden
-# print("\nDataframe na verwijderen van kolommen met meer dan 50% missende waarden:\n", X_cleaned)
-
-columns_more_than_50_missing = col_missing_percentage[col_missing_percentage > 50].index.tolist()
-print("Kolomnamen met meer dan 50% missende waarden:", columns_more_than_50_missing)
-
-missing_percent = X.isnull().mean() * 100
-
-missing_percent.sort_values(ascending=False).plot(kind='bar', figsize=(12,5))
-plt.ylabel("Percentage missing")
-plt.title("Missing data per feature")
+# HEATMAP PLOTTEN
+plt.figure(figsize=(12,6))
+seaborn.heatmap(X.isnull(), cbar=False, xticklabels=False, yticklabels=False)
+plt.title("Missing data heatmap")
+plt.xlabel("Features")
+plt.ylabel("Samples")
 plt.show()
 
-cols_with_missing = X.columns[X.isnull().any()]
 
-for col in cols_with_missing:
-    missing_indicator = X[col].isnull().astype(int)
-    missing_by_label = pd.DataFrame({
-        'label': y,
-        'missing': missing_indicator
-    })
+
+#%%
+# def preprocess_data(X):
+#     X = X.copy()
+
+#     Q1 = X.quantile(0.25)
+#     Q3 = X.quantile(0.75)
+#     IQR = Q3 - Q1
+
+#     outliers = (X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR))
+#     X = X.mask(outliers, np.nan)
+
+#     X = X.fillna(X.median())
+
+#     return X
+
+# X = preprocess_data(X)
+
+# for col in cols_with_missing:
+#     missing_indicator = X[col].isnull().astype(int)
+#     missing_by_label = pd.DataFrame({
+#         'label': y,
+#         'missing': missing_indicator
+#     })
     
-    plot_data = missing_by_label.groupby('label')['missing'].mean()
+#     plot_data = missing_by_label.groupby('label')['missing'].mean()
     
-    plot_data.plot(kind='bar')
-    plt.ylabel('Fractie missing')
-    plt.title(f'Missingness van {col} per label')
-    plt.ylim(0, 1)
-    plt.show()
-
-
-# plt.figure(figsize=(12,6))
-# sns.heatmap(X.isnull(), cbar=False, xticklabels=False, yticklabels=False)
-# plt.title("Missing data heatmap")
-# plt.xlabel("Features")
-# plt.ylabel("Samples")
-# plt.show()
+#     plot_data.plot(kind='bar')
+#     plt.ylabel('Fractie missing')
+#     plt.title(f'Missingness van {col} per label')
+#     plt.ylim(0, 1)
+#     plt.show()
 
 
 # import missingno as msno
@@ -94,17 +94,31 @@ for col in cols_with_missing:
 # msno.matrix(X)
 # plt.show()
 
-
-# X.replace(0.0, np.nan, inplace=True)
-# # Loop door elke kolom en vervang missende waarden met de berekende mediaan
-# for column in X.columns:
-#     # Bereken de mediaan van de kolom zonder de missende waarden
-#     median_value = X[column].median()
-    
-#     # Vervang missende waarden met de berekende mediaan
-#     X[column] = X[column].fillna(median_value)
+# def detect_missing_data(X):
+#     X = X.copy()
+#     X = X.replace(0.0, np.nan)
+#     return X
 
 
+# def detect_outliers(X):
+#     detect_missing_data(X)
+#     Q1 = X.quantile(0.25)
+#     Q3 = X.quantile(0.75)
+#     IQR = Q3 - Q1
+
+#     outliers_iqr = ((X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR)))
+#     X = X.replace(outliers_iqr, np.nan)
+#     return X, IQR, outliers_iqr
+
+# def imputation(X):
+#     detect_missing_data(X)
+#     detect_outliers(X)
+#     for column in X.columns:
+#         median_value = X[column].median()
+        
+#         X[column] = X[column].fillna(median_value)
+#     return X
+ 
 
 # col_missing_counts = (X == 0.0).sum()
 # row_missing_counts = (X == 0.0).sum(axis=1)
@@ -119,3 +133,23 @@ for col in cols_with_missing:
 
 # # missing_positions = data[data == 0.0].stack()
 # # print(missing_positions)
+
+#%%
+
+plt.figure(figsize=(12, 6))
+seaborn.boxplot(data=X)
+plt.xticks(rotation=45)
+plt.title("Boxplots of Features")
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+

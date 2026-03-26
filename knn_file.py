@@ -129,7 +129,7 @@ X_test_scaled = scaler.transform(X_test)
 
 # #%%
 #X2 en y2 maken
-X = X
+X_scaled = X
 y_array = y.values
 # Create a 20 fold stratified CV iterator
 cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -261,11 +261,170 @@ print(f"The optimal N={optimal_n}")
 # print(f"The optimal N={optimal_n}")
 
 
+#%%
 
 
+# # Create a 20 fold stratified CV iterator
+# cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+# results = []
+# best_n_neighbors = []
+
+# param_grid = {"n_neighbors": list(range(1,26,2))}
+
+# all_train = []
+# all_test = []
+
+# # Loop over the folds
+# for train_index, test_index in cv_20fold.split(X_train, y_train):
+    
+#     train_scores = []
+#     test_scores = []
+#     # Split the data properly
+#     X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
+#     y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
 
 
+#     # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
+#     # Same as above
+#     knn = neighbors.KNeighborsClassifier()
+#     cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+#     grid_search = model_selection.GridSearchCV(knn, param_grid, cv=cv_10fold, scoring='roc_auc')
+#     grid_search.fit(X_cv_train, y_cv_train)
+
+#     # Get resulting classifier
+#     clf = grid_search.best_estimator_
+#     best_n_neighbors.append(clf.n_neighbors)
+#     print(f'best k in fold: {clf.n_neighbors}')
+
+#     # Test the classifier on the training data and plot
+#     train_proba = clf.predict_proba(X_cv_train)[:, 1]
+#     test_proba = clf.predict_proba(X_cv_test)[:, 1]
+
+#     score_train = metrics.roc_auc_score(y_cv_train, train_proba)
+#     score_test = metrics.roc_auc_score(y_cv_test, test_proba)
+
+#     train_scores.append(score_train)
+#     test_scores.append(score_test)
+
+#     all_train.append(train_scores)
+#     all_test.append(test_scores)
+
+#     results.append({
+#         'auc': score_train,
+#         'k': clf.n_neighbors,
+#         'set': 'train'
+#     })
+
+#     # Test the classifier on the validation data
+#     results.append({
+#         'auc': score_test,
+#         'k': clf.n_neighbors,
+#         'set': 'test'
+#     })
+
+# # Create numpy array of scores and calculate the mean and std
+# all_train = np.array(all_train)
+# all_test = np.array(all_test)
+
+# train_scores_mean = all_train.mean(axis=0)
+# train_scores_std = all_train.std(axis=0)
+
+# test_scores_mean = all_test.mean(axis=0)
+# test_scores_std = all_test.std(axis=0)
+
+# k_list = param_grid["n_neighbors"]
+# # Plot the mean scores and the std as shading
+# fig = plt.figure(figsize=(8,8))
+# ax = fig.add_subplot(111)
+# ax.grid()
+# ax.fill_between(k_list, train_scores_mean - train_scores_std,
+#                 train_scores_mean + train_scores_std, alpha=0.1,color="r")
+# ax.fill_between(k_list, test_scores_mean - test_scores_std,
+#                 test_scores_mean + test_scores_std, alpha=0.1,color="g")
+# ax.plot(k_list, train_scores_mean, 'o-', color="r",label="Training score")
+# ax.plot(k_list, test_scores_mean, 'o-', color="g",label="Test score")
 
 
+# # Create results dataframe and plot it
+# results = pd.DataFrame(results)
+# sns.boxplot(y='auc', x='set', data=results)
 
+# optimal_n = int(np.median(best_n_neighbors))
+# print(f"The optimal N={optimal_n}")
 
+#%%
+
+# k_list = list(range(1, 26, 2))
+# all_train = []
+# all_test = []
+
+# # Create a 10 fold stratified CV iterator
+# # cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+# cv_20fold = model_selection.StratifiedShuffleSplit(n_splits=20, test_size=0.5, random_state=0)
+
+# # Loop over the folds
+# for train_index, test_index in cv_20fold.split(X_train, y_train):
+#     train_scores = []
+#     test_scores = []
+
+#     # Split the data properly
+#     X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
+#     y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
+
+#     # Loop over all k values
+#     for k in k_list:
+#         clf = neighbors.KNeighborsClassifier(n_neighbors=k)
+#         clf.fit(X_cv_train, y_cv_train)
+
+#         # Predict probabilities
+#         train_proba = clf.predict_proba(X_cv_train)[:, 1]
+#         test_proba = clf.predict_proba(X_cv_test)[:, 1]
+
+#         # Compute AUC
+#         score_train = metrics.roc_auc_score(y_cv_train, train_proba)
+#         score_test = metrics.roc_auc_score(y_cv_test, test_proba)
+
+#         train_scores.append(score_train)
+#         test_scores.append(score_test)
+
+#     all_train.append(train_scores)
+#     all_test.append(test_scores)
+
+# # Create numpy array of scores and calculate the mean and std
+# all_train = np.array(all_train)
+# all_test = np.array(all_test)
+
+# train_scores_mean = all_train.mean(axis=0)
+# train_scores_std = all_train.std(axis=0)
+
+# test_scores_mean = all_test.mean(axis=0)
+# test_scores_std = all_test.std(axis=0)
+
+# # Best k based on highest mean test AUC
+# optimal_n = k_list[np.argmax(test_scores_mean)]
+# print(f"The optimal N = {optimal_n}")
+
+# # Plot the learning/performance curve
+# fig = plt.figure(figsize=(8, 8))
+# ax = fig.add_subplot(111)
+# ax.grid()
+
+# ax.fill_between(k_list,train_scores_mean - train_scores_std,
+#     train_scores_mean + train_scores_std,
+#     alpha=0.1,color="r"
+# )
+
+# ax.fill_between(k_list,test_scores_mean - test_scores_std,
+#     test_scores_mean + test_scores_std,
+#     alpha=0.1,color="g"
+# )
+
+# ax.plot(k_list, train_scores_mean, 'o-', color="r", label="Training AUC")
+# ax.plot(k_list, test_scores_mean, 'o-', color="g", label="Validation AUC")
+
+# ax.set_xlabel("Number of neighbors (k)")
+# ax.set_ylabel("ROC AUC")
+# ax.set_title("KNN learning curve")
+# ax.legend()
+
+# plt.show()
