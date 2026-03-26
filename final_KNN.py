@@ -71,78 +71,88 @@ X_train, X_test, y_train, y_test = train_test_split(
     X2, y2, test_size=0.2, random_state=42
 )
 
+
 #%%
-# Create a 20 fold stratified CV iterator
-cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-results = []
-best_n_neighbors = []
 
 param_grid = {"n_neighbors": list(range(1,26,2))}
-
+k_list = list(range(1, 26, 2))
+results = []
+best_n_neighbors = []
 all_train = []
 all_test = []
 
-# Loop over the folds
+# Outer CV
+cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
 for train_index, test_index in cv_20fold.split(X_train, y_train):
-    
-    train_scores = []
-    test_scores = []
-    # Split the data properly
+
     X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
     y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
 
-
-    # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
-    # Same as above
     knn = neighbors.KNeighborsClassifier()
     cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    grid_search = model_selection.GridSearchCV(knn, param_grid, cv=cv_10fold, scoring='roc_auc')
+
+    grid_search = model_selection.GridSearchCV(
+        knn,
+        param_grid,
+        cv=cv_10fold,
+        scoring='roc_auc',
+        return_train_score=True  # 👈 belangrijk!
+    )
+
     grid_search.fit(X_cv_train, y_cv_train)
 
-    # Get resulting classifier
+    # Beste model (zoals jij had)
     clf = grid_search.best_estimator_
     best_n_neighbors.append(clf.n_neighbors)
-    print(f'best k in fold: {clf.n_neighbors}')
 
-    # Test the classifier on the training data and plot
-    train_proba = clf.predict_proba(X_cv_train)[:, 1]
-    test_proba = clf.predict_proba(X_cv_test)[:, 1]
+    # 👉 Haal ALLE scores op
+    mean_train_scores = grid_search.cv_results_["mean_train_score"]
+    mean_test_scores = grid_search.cv_results_["mean_test_score"]
 
-    score_train = metrics.roc_auc_score(y_cv_train, train_proba)
-    score_test = metrics.roc_auc_score(y_cv_test, test_proba)
+    all_train.append(mean_train_scores)
+    all_test.append(mean_test_scores)
 
-    train_scores.append(score_train)
-    test_scores.append(score_test)
 
-    all_train.append(train_scores)
-    all_test.append(test_scores)
+all_train = np.array(all_train)
+all_test = np.array(all_test)
 
-    # Test the classifier on the test data
-    y_probs = clf.predict_proba(X_cv_test)[:,1]
+train_mean = all_train.mean(axis=0)
+train_std = all_train.std(axis=0)
 
-    # Get the auc
-    auc = metrics.roc_auc_score(y_cv_test, y_probs)
-    results.append({
-        'auc': auc,
-        'k': clf.n_neighbors,
-        'set': 'test'
-    })
+test_mean = all_test.mean(axis=0)
+test_std = all_test.std(axis=0)    
 
-    # Test the classifier on the validation data
-    y_train_probs = clf.predict_proba(X_cv_train)[:,1]
-    auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
-    results.append({
-        'auc': auc_train,
-        'k': clf.n_neighbors,
-        'set': 'train'
-    })
 
-# Create results dataframe and plot it
-results = pd.DataFrame(results)
-sns.boxplot(y='auc', x='set', data=results)
+fig = plt.figure(figsize=(8,8))
+ax = fig.add_subplot(111)
+ax.grid()
 
-optimal_n = int(np.median(best_n_neighbors))
-print(f"The optimal N={optimal_n}")
+ax.fill_between(k_list,
+                train_mean - train_std,
+                train_mean + train_std,
+                alpha=0.1, color="r")
+
+ax.fill_between(k_list,
+                test_mean - test_std,
+                test_mean + test_std,
+                alpha=0.1, color="g")
+
+ax.plot(k_list, train_mean, 'o-', color="r", label="Training AUC")
+ax.plot(k_list, test_mean, 'o-', color="g", label="Validation AUC")
+
+ax.set_xlabel("Number of neighbors (k)")
+ax.set_ylabel("ROC AUC")
+ax.set_title("KNN learning curve (GridSearchCV)")
+ax.legend()
+
+plt.show()
+
+
+
+
+
+
 
 #%%
 #KNN final classifier
@@ -173,65 +183,4 @@ plt.show()
 
 print(f"Training accuracy: {score_train:.3f}")
 print(f"Test accuracy: {score_test:.3f}")
-
-#%%
-
-
-
-# Repeat the experiment 20 times, use 20 random splits in which class balance is retained
-sss = model_selection.StratifiedShuffleSplit(n_splits=20, test_size=0.5, random_state=0)
-
-for train_index, test_index in sss.split(X2, y2):
-    train_scores = []
-    test_scores = []
-
-    split_X_train = X2[train_index]
-    split_y_train = y2[train_index]
-    split_X_test = X2[test_index]
-    split_y_test = y2[test_index]
-
-    for k in k_list:
-        clf_knn = neighbors.KNeighborsClassifier(n_neighbors=k)
-        clf_knn.fit(split_X_train, split_y_train)
-
-        # Test the classifier on the training data and plot
-        train_proba = clf_knn.predict_proba(split_X_train)[:, 1]
-        test_proba = clf_knn.predict_proba(split_X_test)[:, 1]
-
-        score_train = metrics.roc_auc_score(split_y_train, train_proba)
-        score_test = metrics.roc_auc_score(split_y_test, test_proba)
-
-
-        train_scores.append(score_train)
-        test_scores.append(score_test)
-
-    all_train.append(train_scores)
-    all_test.append(test_scores)
-
-
-# Create numpy array of scores and calculate the mean and std
-all_train = np.array(all_train)
-all_test = np.array(all_test)
-
-train_scores_mean = all_train.mean(axis=0)
-train_scores_std = all_train.std(axis=0)
-
-test_scores_mean = all_test.mean(axis=0)
-test_scores_std = all_test.std(axis=0)
-
-# Plot the mean scores and the std as shading
-fig = plt.figure(figsize=(8,8))
-ax = fig.add_subplot(111)
-ax.grid()
-ax.fill_between(k_list, train_scores_mean - train_scores_std,
-                     train_scores_mean + train_scores_std, alpha=0.1,
-                     color="r")
-ax.fill_between(k_list, test_scores_mean - test_scores_std,
-                     test_scores_mean + test_scores_std, alpha=0.1,
-                     color="g")
-ax.plot(k_list, train_scores_mean, 'o-', color="r",
-        label="Training score")
-ax.plot(k_list, test_scores_mean, 'o-', color="g",
-        label="Test score")
-
 
