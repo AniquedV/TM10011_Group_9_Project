@@ -75,7 +75,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # Cross-validation, strafifiedkfold makes sure each fold has the same class proportions
-cv_inner = StratifiedKFold(n_splits=5, 
+cv_inner = StratifiedKFold(n_splits=10, 
                            shuffle=True, #improves randomness of folds
                            random_state=42)
 
