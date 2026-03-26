@@ -97,7 +97,7 @@ for train_index, test_index in cv_20fold.split(X_train, y_train):
         param_grid,
         cv=cv_10fold,
         scoring='roc_auc',
-        return_train_score=True  # 👈 belangrijk!
+        return_train_score=True
     )
 
     grid_search.fit(X_cv_train, y_cv_train)
@@ -106,7 +106,7 @@ for train_index, test_index in cv_20fold.split(X_train, y_train):
     clf = grid_search.best_estimator_
     best_n_neighbors.append(clf.n_neighbors)
 
-    # 👉 Haal ALLE scores op
+
     mean_train_scores = grid_search.cv_results_["mean_train_score"]
     mean_test_scores = grid_search.cv_results_["mean_test_score"]
 
@@ -123,6 +123,7 @@ train_std = all_train.std(axis=0)
 test_mean = all_test.mean(axis=0)
 test_std = all_test.std(axis=0)    
 
+optimal_n = k_list[np.argmax(test_mean)]
 
 fig = plt.figure(figsize=(8,8))
 ax = fig.add_subplot(111)
@@ -148,10 +149,7 @@ ax.legend()
 
 plt.show()
 
-
-
-
-
+print(f"The optimal N = {optimal_n}")
 
 
 #%%
