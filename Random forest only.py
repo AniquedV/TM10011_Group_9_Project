@@ -104,12 +104,33 @@ def plot_roc_curve(y_score, y_truth):
 # Prepare data
 data['label_bin'] = LabelEncoder().fit_transform(data['label'])
 
-X = data.drop(columns=['label', 'label_bin']).values
-y = data['label_bin'].values
+X = data.drop(columns=['label', 'label_bin'])
+y = data['label_bin']
+
+# pre-processing
+def preprocess_data(X):
+    X = X.copy()
+
+    Q1 = X.quantile(0.25)
+    Q3 = X.quantile(0.75)
+    IQR = Q3 - Q1
+
+    outliers = (X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR))
+    X = X.mask(outliers, np.nan)
+
+    X = X.fillna(X.median())
+
+    return X
+
+X_cleaned = preprocess_data(X)
+
+scaler = RobustScaler()
+X2 = scaler.fit_transform(X_cleaned)
+y2 = y.values
 
 # Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
+    X2, y2, test_size=0.2, random_state=42, stratify=y2
 )
 
 # Define model
@@ -117,14 +138,14 @@ model = RandomForestClassifier(random_state=42)
 
 # Define hyperparameter distributions for RandomizedSearch
 param_distributions = {
-    "n_estimators": randint(50, 200),         #number of trees
-    "max_depth": randint(2, 10),              #max depth of trees
+    "n_estimators": randint(50, 150),         #number of trees
+    "max_depth": randint(2, 5),              #max depth of trees
     "min_samples_split": randint(2, 20),      #min samples to split
-    "min_samples_leaf": randint(1, 20),       #min samples per leaf
+    "min_samples_leaf": randint(5, 10),       #min samples per leaf
 }
 
 # Stratified CV
-cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+cv_inner = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 #%% RandomizedSearchCV
 random_search = RandomizedSearchCV(
