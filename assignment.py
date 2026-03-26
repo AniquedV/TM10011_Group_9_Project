@@ -1,129 +1,123 @@
 
-# ## Data loading and cleaning
-# Below are functions to load the dataset of your choice. After that, it is all up to you to create and evaluate a classification method. Beware, there may be missing values in these datasets. Good luck!
-
-
-#%% Data loading functions. Uncomment the one you want to use
-#from worcgist.load_data import load_data
-#from worclipo.load_data import load_data
-#from worcliver.load_data import load_data
+# Import the dataset and load it into a pandas DataFrame
 from hn.load_data import load_data
-#from ecg.load_data import load_data
-
 data = load_data()
 
+
+# Print the number of rows and colums
 print(f'The number of samples: {len(data.index)}')
 print(f'The number of columns: {len(data.columns)}')
 
-
-#%% Imports
+# =====================
+# Imports
+# =====================
+import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
 import seaborn as sns
-from sklearn.preprocessing import RobustScaler
+
+
+from sklearn.preprocessing import LabelEncoder, RobustScaler
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV, learning_curve
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_curve, auc, accuracy_score
 from sklearn.decomposition import PCA
-from scipy.cluster.hierarchy import linkage, dendrogram
+from sklearn.model_selection import cross_val_score
 from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
-from scipy.stats import shapiro, normaltest, skew, kurtosis
 from sklearn import neighbors
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
-import seaborn
 
+from scipy.cluster.hierarchy import linkage, dendrogram
+from scipy.stats import shapiro, normaltest, skew, kurtosis
 
-# Some functions we will use
-
-#wordt niet meer gebruikt
-def colorplot(clf, ax, x, y, h=100):
-    '''
-    Overlay the decision areas as colors in an axes.
-
-    Input:
-        clf: trained classifier
-        ax: axis to overlay color mesh on
-        x: feature on x-axis
-        y: feature on y-axis
-        h(optional): steps in the mesh
-    '''
-    # Create a meshgrid the size of the axis
-    xstep = (x.max() - x.min() ) / 20.0
-    ystep = (y.max() - y.min() ) / 20.0
-    x_min, x_max = x.min() - xstep, x.max() + xstep
-    y_min, y_max = y.min() - ystep, y.max() + ystep
-    h = max((x_max - x_min, y_max - y_min))/h
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                         np.arange(y_min, y_max, h))
-
-    # Plot the decision boundary. For that, we will assign a color to each
-    # point in the mesh [x_min, x_max]x[y_min, y_max].
-    if hasattr(clf, "decision_function"):
-        Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
-    else:
-        Z = clf.predict_proba(np.c_[xx.ravel(), yy.ravel()])
-    if len(Z.shape) > 1:
-        Z = Z[:, 1]
-
-    # Put the result into a color plot
-    cm = plt.cm.RdBu_r
-    Z = Z.reshape(xx.shape)
-    ax.contourf(xx, yy, Z, cmap=cm, alpha=.8)
-    del xx, yy, x_min, x_max, y_min, y_max, Z, cm
-
-#%% visualisatie
-import matplotlib.pyplot as plt
-import pandas as pd
-from sklearn.preprocessing import RobustScaler
-from sklearn.model_selection import train_test_split
-from sklearn import neighbors
 from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
 
 
-data['label_bin'] = LabelEncoder().fit_transform(data['label'])
-print(data[['label', 'label_bin']].head())
+# =====================
+# Data preparation
+# =====================
+data['label_bin'] = LabelEncoder().fit_transform(data['label']) #convert T12 and T34 into binary numbers
 
-X = data.drop(columns=['label', 'label_bin'])
-y = data['label_bin']
+X = data.drop(columns=['label', 'label_bin']) #drop label to only be left with the features
+y = data['label_bin'] # make y with only the binary labels
 
-X_array = X.values
-y_array = y.values
 
-# Train/test split
+def preprocess_data(X):
+    X = X.copy()
+
+    Q1 = X.quantile(0.25)
+    Q3 = X.quantile(0.75)
+    IQR = Q3 - Q1
+
+    outliers = (X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR))
+    X = X.mask(outliers, np.nan)
+
+    X = X.fillna(X.median())
+
+    return X
+
+X_cleaned = preprocess_data(X)
+#%%
+
+scaler = RobustScaler()
+X2 = scaler.fit_transform(X_cleaned)
+y2 = y.values
+
+
+
+# Split dataset into a training (80%) and test (20%) set
 X_train, X_test, y_train, y_test = train_test_split(
-    X_array, y_array, test_size=0.2, random_state=42, stratify=y_array
+    X2, y2,
+    test_size=0.2,
+    random_state=42, # ensures reproducibility by splitting it at the same place each time
+    stratify=y2 # This keeps the class distribution identical in train and test set
 )
 
-# Scale features
-scaler = RobustScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+# Cross-validation, strafifiedkfold makes sure each fold has the same class proportions
+cv_inner = StratifiedKFold(n_splits=5, 
+                           shuffle=True, #improves randomness of folds
+                           random_state=42)
 
+# =====================
+# Pipeline
+# =====================
 
+# The pipeline ensures that scaling happens inside the CV folds
+pipe = Pipeline([
+    ("scaler", RobustScaler()),
+    ("model", XGBClassifier(
+        n_estimators=100,       #number of trees
+        max_depth=2,            #depth of trees (small to reduce overfitting)
+        learning_rate=0.01,     #small step size to result in better generalisation and slower learning
+        subsample=0.7,          #70% of samples per tree to reduce overfitting
+        colsample_bytree=0.7,   #70% of features per tree to add randomness and reduce overfitting
+        reg_alpha=1.0,          #L1 regularization
+        reg_lambda=5.0,         #L2 regularization
+        gamma=1.0,              #how much improvement is needed to make a split in a decision tree
+        random_state=42,        #make it reproducable
+        eval_metric="logloss"   #loss function is used because we have binary classification
+    ))
+])
 
-
+# =====================
+# GridSearch (hyperparameter tuning)
+# =====================
 param_grid = {
-    "n_estimators": [50, 100, 200],
-    "max_depth": [3, 4, 6],
-    "learning_rate": [0.01, 0.1, 0.2],
-    "subsample": [0.8, 1.0]
+    "model__max_depth": [3, 4],
+    "model__learning_rate": [0.05, 0.1],
+    "model__subsample": [0.6, 0.8],
+    "model__colsample_bytree": [0.6, 0.8]
 }
 
-cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 
-model = XGBClassifier(
-    use_label_encoder=False,
-    eval_metric='logloss',
-    random_state=42
-)
-
-grid_search = GridSearchCV(
-    estimator=model,
+grid_search = GridSearchCV(     # trying all combinations of parameters
+    estimator=pipe,
     param_grid=param_grid,
     cv=cv_inner,
-    scoring='roc_auc',
-    n_jobs=-1
+    scoring="roc_auc",
+    n_jobs=-1,                  #use all the available cores
+    verbose=1                   #show how many fits needs to be done
 )
 
 grid_search.fit(X_train, y_train)
@@ -131,109 +125,121 @@ grid_search.fit(X_train, y_train)
 print("Best parameters:")
 print(grid_search.best_params_)
 
-#%% BEST MODEL (trained on train folds)
 best_model = grid_search.best_estimator_
 
+# =====================
+# Learning curve
+# =====================
+def plot_learning_curve(estimator, title, X, y, 
+                        axes, 
+                        ylim=None, 
+                        cv=None, 
+                        n_jobs=None, 
+                        train_sizes=np.linspace(0.1,1.0,5),
+                        scoring='accuracy'):
+    axes.set_title(title)
 
-#%% CROSS-VAL PERFORMANCE OP TRAIN
-cv_scores = model_selection.cross_val_score(
+    if ylim is not None:
+        axes.set_ylim(*ylim)
+
+    axes.set_xlabel("Training examples")
+    axes.set_ylabel("score")
+
+
+    train_sizes, train_scores, test_scores = learning_curve(
+        estimator,
+        X,
+        y,
+        cv=cv_inner,
+        scoring=scoring,
+        n_jobs=-1,
+    )
+
+    train_mean = np.mean(train_scores, axis=1)
+    train_std = np.std(train_scores, axis=1)
+
+    test_mean = np.mean(test_scores,axis=1)
+    test_std = np.std(test_scores, axis=1)
+
+    axes.grid()
+
+    axes.fill_between(
+        train_sizes,
+        train_mean - train_std,
+        train_mean + train_std,
+        alpha=0.1,
+        color = "r"
+    )
+
+    axes.fill_between(
+        train_sizes,
+        test_mean - test_std,
+        test_mean + test_std,
+        alpha = 0.1,
+        color = "g"
+    )
+
+    axes.plot(train_sizes, train_mean, 'o-', color="r",
+              label = "Training score")
+    axes.plot(train_sizes, test_mean, 'o-', color="g",
+              label = "Cross-validation score")
+    
+    axes.legend(loc="best")
+
+    return axes
+fig, ax = plt.subplots(figsize=(7,5))
+
+plot_learning_curve( 
+    best_model, 
+    title="Learning Curve - XGBoost", 
+    X=X_train, 
+    y=y_train, 
+    axes=ax, 
+    cv=cv_inner, 
+    n_jobs=-1, 
+    scoring='accuracy' ) 
+plt.show()
+    
+# =====================
+# Cross-validation score
+# =====================
+
+cv_scores = cross_val_score(
     best_model,
     X_train,
     y_train,
     cv=cv_inner,
-    scoring='roc_auc'
+    scoring="roc_auc"
 )
 
-print(f"CV AUC (train): {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+print(f"CV AUC: {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
 
-#%% TESTSET
+# =====================
+# Test performance
+# =====================
+best_model.fit(X_train, y_train)
 
-y_test_probs = best_model.predict_proba(X_test)[:, 1]
-auc_test = metrics.roc_auc_score(y_test, y_test_probs)
+y_pred = best_model.predict(X_test)
+acc = accuracy_score(y_test, y_pred)
 
-print(f"\nTEST AUC: {auc_test:.3f}")
+print(f"Test Accuracy: {acc:.3f}")
 
+# =====================
+# ROC curve
+# =====================
+y_proba = best_model.predict_proba(X_test)[:, 1]
 
+fpr, tpr, _ = roc_curve(y_test, y_proba)
+roc_auc = auc(fpr, tpr)
 
-
-
-
-
-'''
-# Train KNN classifier op geschaalde data
-clf_knn = neighbors.KNeighborsClassifier(n_neighbors=15)
-clf_knn.fit(X_train_scaled, y_train)
-
-# Training accuracy
-score_train = clf_knn.score(X_train_scaled, y_train)
-
-# Plot decision boundary
-fig = plt.figure(figsize=(8, 8))
-ax = fig.add_subplot(1, 1, 1)
-ax.set_title(f"Training performance: accuracy {score_train}")
-
-# Correct: gebruik NumPy array van geschaalde data
-#colorplot(clf_knn, ax, X_train_scaled[:, 0], X_train_scaled[:, 1], h=1000)
-
-# Plot de punten
-ax.scatter(X_train_scaled[:, 0], X_train_scaled[:, 1], marker='o', c=y_train,
-           s=25, edgecolor='k', cmap=plt.cm.Paired)
+plt.figure(figsize=(6,6))
+plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
+plt.plot([0,1], [0,1], "--")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve - XGBoost")
+plt.legend()
+plt.grid()
 plt.show()
 
-
-#%%
-#X2 en y2 maken
-X_scaled = scaler.fit_transform(X)
-y_array = y.values
-# Create a 20 fold stratified CV iterator
-cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-results = []
-best_n_neighbors = []
-
-param_grid = {"n_neighbors": list(range(1,26,2))}
-
-# Loop over the folds
-for train_index, test_index in cv_20fold.split(X_scaled, y_array):
-    # Split the data properly
-    X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
-    y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
-
-    # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
-    # Same as above
-    knn = neighbors.KNeighborsClassifier()
-    cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    grid_search = model_selection.GridSearchCV(knn, param_grid, cv=cv_10fold, scoring='roc_auc')
-    grid_search.fit(X_cv_train, y_cv_train)
-
-    # Get resulting classifier
-    clf = grid_search.best_estimator_
-    best_n_neighbors.append(clf.n_neighbors)
-    print(f'best k in fold: {clf.n_neighbors}')
-
-    # Test the classifier on the test data
-    y_probs = clf.predict_proba(X_cv_test)[:,1]
-
-    # Get the auc
-    auc = metrics.roc_auc_score(y_cv_test, y_probs)
-    results.append({
-        'auc': auc,
-        'k': clf.n_neighbors,
-        'set': 'test'
-    })
-
-    # Test the classifier on the validation data
-    y_train_probs = clf.predict_proba(X_cv_train)[:,1]
-    auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
-    results.append({
-        'auc': auc_train,
-        'k': clf.n_neighbors,
-        'set': 'train'
-    })
-
-# Create results dataframe and plot it
-results = pd.DataFrame(results)
-sns.boxplot(y='auc', x='set', data=results)
-
-optimal_n = int(np.median(best_n_neighbors))
-print(f"The optimal N={optimal_n}")
-'''
+print(f"Test AUC: {roc_auc:.3f}")
