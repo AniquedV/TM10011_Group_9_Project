@@ -106,30 +106,30 @@ scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Train KNN classifier op geschaalde data
-clf_knn = neighbors.KNeighborsClassifier(n_neighbors=15)
-clf_knn.fit(X_train_scaled, y_train)
+# # Train KNN classifier op geschaalde data
+# clf_knn = neighbors.KNeighborsClassifier(n_neighbors=15)
+# clf_knn.fit(X_train_scaled, y_train)
 
-# Training accuracy
-score_train = clf_knn.score(X_train_scaled, y_train)
+# # Training accuracy
+# score_train = clf_knn.score(X_train_scaled, y_train)
 
-# Plot decision boundary
-fig = plt.figure(figsize=(8, 8))
-ax = fig.add_subplot(1, 1, 1)
-ax.set_title(f"Training performance: accuracy {score_train}")
+# # Plot decision boundary
+# fig = plt.figure(figsize=(8, 8))
+# ax = fig.add_subplot(1, 1, 1)
+# ax.set_title(f"Training performance: accuracy {score_train}")
 
-# Correct: gebruik NumPy array van geschaalde data
-#colorplot(clf_knn, ax, X_train_scaled[:, 0], X_train_scaled[:, 1], h=1000)
+# # Correct: gebruik NumPy array van geschaalde data
+# #colorplot(clf_knn, ax, X_train_scaled[:, 0], X_train_scaled[:, 1], h=1000)
 
-# Plot de punten
-ax.scatter(X_train_scaled[:, 0], X_train_scaled[:, 1], marker='o', c=y_train,
-           s=25, edgecolor='k', cmap=plt.cm.Paired)
-plt.show()
+# # Plot de punten
+# ax.scatter(X_train_scaled[:, 0], X_train_scaled[:, 1], marker='o', c=y_train,
+#            s=25, edgecolor='k', cmap=plt.cm.Paired)
+# plt.show()
 
 
-#%%
+# #%%
 #X2 en y2 maken
-X_scaled = scaler.fit_transform(X)
+X = X
 y_array = y.values
 # Create a 20 fold stratified CV iterator
 cv_20fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -140,6 +140,10 @@ param_grid = {"n_neighbors": list(range(1,26,2))}
 
 # Loop over the folds
 for train_index, test_index in cv_20fold.split(X_scaled, y_array):
+
+    scaler = RobustScaler()
+    X_cv_train_scaled = scaler.fit_transform(X_cv_train)
+    X_cv_test_scaled = scaler.transform(X_cv_test)
     # Split the data properly
     X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
     y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
@@ -182,3 +186,86 @@ sns.boxplot(y='auc', x='set', data=results)
 
 optimal_n = int(stats.mode(best_n_neighbors)[0][0])
 print(f"The optimal N={optimal_n}")
+
+#%%
+
+
+# from sklearn.pipeline import Pipeline
+
+# X_scaled = X
+# y_array = y.values
+
+# # Create a 20 fold stratified CV iterator
+# cv_20fold = model_selection.StratifiedKFold(n_splits=20, shuffle=True, random_state=42)
+# results = []
+# best_n_neighbors = []
+
+# param_grid = {"n_neighbors": list(range(1,26,2))}
+
+# # Loop over the folds
+# for train_index, test_index in cv_20fold.split(X_scaled, y_array):
+#     # Split the data properly
+#     X_cv_train, X_cv_test = X_scaled.iloc[train_index], X_scaled.iloc[test_index]
+#     y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
+
+#     scaler = RobustScaler()
+#     X_cv_train_scaled = scaler.fit_transform(X_cv_train)
+#     X_cv_test_scaled = scaler.transform(X_cv_test)
+
+#     # Create a pipeline so scaling happens correctly inside each fold
+#     knn = Pipeline([
+#         ('scaler', RobustScaler()),
+#         ('knn', neighbors.KNeighborsClassifier())
+#     ])
+
+#     cv_10fold = model_selection.StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
+#     grid_search = model_selection.GridSearchCV(
+#         knn,
+#         param_grid={'knn__n_neighbors': list(range(1,26,2))},
+#         cv=cv_10fold,
+#         scoring='roc_auc'
+#     )
+#     grid_search.fit(X_cv_train, y_cv_train)
+
+#     # Get resulting classifier
+#     clf = grid_search.best_estimator_
+#     best_n_neighbors.append(clf.named_steps['knn'].n_neighbors)
+#     print(f'best k in fold: {clf.named_steps["knn"].n_neighbors}')
+
+#     # Test the classifier on the test data
+#     y_probs = clf.predict_proba(X_cv_test)[:, 1]
+
+#     # Get the auc
+#     auc = metrics.roc_auc_score(y_cv_test, y_probs)
+#     results.append({
+#         'auc': auc,
+#         'k': clf.named_steps['knn'].n_neighbors,
+#         'set': 'test'
+#     })
+
+#     # Test the classifier on the validation data
+#     y_train_probs = clf.predict_proba(X_cv_train)[:, 1]
+#     auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
+#     results.append({
+#         'auc': auc_train,
+#         'k': clf.named_steps['knn'].n_neighbors,
+#         'set': 'train'
+#     })
+
+# # Create results dataframe and plot it
+# results = pd.DataFrame(results)
+# sns.boxplot(y='auc', x='set', data=results)
+
+# optimal_n = int(stats.mode(best_n_neighbors, keepdims=True)[0][0])
+# print(f"The optimal N={optimal_n}")
+
+
+
+
+
+
+
+
+
+
