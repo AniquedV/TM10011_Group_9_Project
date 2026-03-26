@@ -35,9 +35,9 @@ import seaborn
 # Some functions we will use
 
 # Construct classifiers
-svmlin = SVC(kernel='linear', gamma='scale')
-svmrbf = SVC(kernel='rbf', gamma='scale')
-svmpoly = SVC(kernel='poly', degree=3, gamma='scale')
+svmlin = SVC(kernel='linear', gamma='scale', probability=True)
+svmrbf = SVC(kernel='rbf', gamma='scale', probability=True)
+svmpoly = SVC(kernel='poly', degree=3, gamma='scale', probability=True)
 
 clsfs = [
     ("SVM linear", svmlin),
@@ -45,7 +45,6 @@ clsfs = [
     ("SVM rbf", svmrbf)
 ]
 
-#wordt niet meer gebruikt
 def colorplot(clf, ax, x, y, h=100):
     '''
     Overlay the decision areas as colors in an axes.
@@ -170,7 +169,7 @@ param_grid = {"n_neighbors": list(range(1,26,2))}
 #parameters voor svm
 svm_clfs = [
     ("linear", SVC(kernel='linear', C=1.0, gamma='scale', probability=True)),
-    ("poly",   SVC(kernel='poly', degree=3, coef0=1, C=1.0, gamma='scale', probability=True)),
+    ("poly",   SVC(kernel='poly', degree=5, coef0=1, C=1.0, gamma='scale', probability=True)),
     ("rbf",    SVC(kernel='rbf', C=1.0, gamma='scale', probability=True))
 ]
 
@@ -368,3 +367,20 @@ plt.show()
 fig, ax = plt.subplots(figsize=(8,6))
 plot_learning_curve(svmrbf, "Learning Curve: SVM RBF", X_train_scaled, y_train, ax, cv=10)
 plt.show()
+
+from sklearn.metrics import confusion_matrix, accuracy_score, recall_score
+
+for name, clf in clsfs:
+    clf.fit(X_train_scaled, y_train)
+
+    y_test_pred = clf.predict(X_test_scaled)
+    y_test_probs = clf.predict_proba(X_test_scaled)
+
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+
+    print(f"\n{name}")
+    print("accuracy:", accuracy_score(y_test, y_test_pred))
+    print("sensitivity:", recall_score(y_test, y_test_pred))
+    print("specificity:", tn / (tn + fp))
+
+    plot_roc_curve(y_test_probs, y_test)
