@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearc
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
 import seaborn
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, accuracy_score
 
 from sklearn import decomposition
 from sklearn import model_selection
@@ -50,32 +50,15 @@ print(data[['label', 'label_bin']].head())
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
-#%%
-# cols_with_missing = [col for col in X.columns if (X[col] == 0.0).any()]
-
-# for col in cols_with_missing:
-#     missing_indicator = (X[col]==0).astype(int)
-#     missing_by_label = pd.DataFrame({
-#         'label': y,
-#         'missing': missing_indicator
-#     })
-
-# plot_data = missing_by_label.groupby('label')['missing'].mean()
-
-# plot_data.plot(kind='bar')
-# plt.ylabel('Fractie missing')
-# plt.title(f'Missingness van {col} per label')
-# plt.ylim(0, 1)
-# plt.show()
 
 #%%
 
 def preprocess_data(X):
     X = X.copy()
-    X = X.mask(X == 0.0, np.nan)  
-    missing_pct = X.isnull().mean() * 100
-    drop_features = missing_pct[missing_pct>50].index
-    X = X.drop(columns=drop_features)
+    # X = X.mask(X == 0.0, np.nan)  
+    # missing_pct = X.isnull().mean() * 100
+    # drop_features = missing_pct[missing_pct>50].index
+    # X = X.drop(columns=drop_features)
 
     Q1 = X.quantile(0.25)
     Q3 = X.quantile(0.75)
