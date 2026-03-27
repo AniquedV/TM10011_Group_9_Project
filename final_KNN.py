@@ -14,6 +14,15 @@ from sklearn import model_selection, metrics
 import seaborn
 from sklearn.metrics import roc_curve, auc
 
+from sklearn import decomposition
+from sklearn import model_selection
+from sklearn import metrics
+from sklearn import feature_selection
+from sklearn import preprocessing
+from sklearn import neighbors
+from sklearn import svm
+from sklearn import decomposition
+
 #%%
 
 
@@ -70,6 +79,42 @@ y2 = y.values
 X_train, X_test, y_train, y_test = train_test_split(
     X2, y2, test_size=0.2, random_state=42
 )
+#%%
+# Create the RFE object and compute a cross-validated score.
+svc = svm.SVC(kernel="linear")
+
+# classifications
+rfecv = feature_selection.RFECV(
+    estimator=svc, 
+    step=1,
+    cv=model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
+    scoring='roc_auc')
+rfecv.fit(X2, y2)
+
+scores = rfecv.cv_results_["mean_test_score"]
+
+scores_no_first = scores[1:]
+best_index = scores_no_first.argmax() +1
+best_score = scores[best_index]
+best_n_features = best_index + 1  # omdat index bij 0 begint
+
+print(best_n_features, best_score)
+
+# Plot number of features VS. cross-validation scores
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (nb of correct classifications)")
+plt.plot(range(1, len(rfecv.cv_results_["mean_test_score"]) + 1), rfecv.cv_results_["mean_test_score"])
+plt.show()
+
+
+# Perform a PCA
+pca = decomposition.PCA(n_components=best_n_features)
+pca.fit(X_train)
+X_train_pca = pca.transform(X_train)
+X_test_pca = pca.transform(X_test)
+
+explained_variance = pca.explained_variance_ratio_
 
 
 #%%
