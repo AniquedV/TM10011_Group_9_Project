@@ -14,7 +14,8 @@ data = load_data()
 print(f'The number of samples: {len(data.index)}')
 print(f'The number of columns: {len(data.columns)}')
 
-
+# col_index1 = data.columns.get_loc("tf_GLRLM_ZoneVariance")
+# col_index2 = data.columns.get_loc("tf_GLRLM_GrayLevelVariance")
 #%% Imports
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -45,16 +46,25 @@ X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
 #%%
+cols_with_missing = [col for col in X.columns if (X[col] == 0.0).any()]
 
-# HEATMAP PLOTTEN
-plt.figure(figsize=(12,6))
-seaborn.heatmap(X.isnull(), cbar=False, xticklabels=False, yticklabels=False)
-plt.title("Missing data heatmap")
-plt.xlabel("Features")
-plt.ylabel("Samples")
-plt.show()
+for col in cols_with_missing:
+    missing_indicator = (X[col]==0).astype(int)
+    missing_by_label = pd.DataFrame({
+        'label': y,
+        'missing': missing_indicator
+    })
+    
+X_zeros = X.replace(0.0, np.nan)    
 
-
+# # HEATMAP PLOTTEN
+# plt.figure(figsize=(12,6))
+# seaborn.heatmap(X_zeros.isnull(), cbar=False)
+# # seaborn.heatmap(X_zeros.isnull(), cbar=False, xticklabels=False, yticklabels=False)
+# plt.title("Missing data heatmap")
+# plt.xlabel("Features")
+# plt.ylabel("Samples")
+# plt.show()
 
 #%%
 # def preprocess_data(X):
@@ -73,20 +83,14 @@ plt.show()
 
 # X = preprocess_data(X)
 
-# for col in cols_with_missing:
-#     missing_indicator = X[col].isnull().astype(int)
-#     missing_by_label = pd.DataFrame({
-#         'label': y,
-#         'missing': missing_indicator
-#     })
+
+    plot_data = missing_by_label.groupby('label')['missing'].mean()
     
-#     plot_data = missing_by_label.groupby('label')['missing'].mean()
-    
-#     plot_data.plot(kind='bar')
-#     plt.ylabel('Fractie missing')
-#     plt.title(f'Missingness van {col} per label')
-#     plt.ylim(0, 1)
-#     plt.show()
+    plot_data.plot(kind='bar')
+    plt.ylabel('Fractie missing')
+    plt.title(f'Missingness van {col} per label')
+    plt.ylim(0, 1)
+    plt.show()
 
 
 # import missingno as msno
@@ -120,27 +124,32 @@ plt.show()
 #     return X
  
 
-# col_missing_counts = (X == 0.0).sum()
-# row_missing_counts = (X == 0.0).sum(axis=1)
+col_missing_counts = (X == 0.0).sum()
+row_missing_counts = (X == 0.0).sum(axis=1)
 
-# worst_row = row_missing_counts.idxmax()
-# print("Rij met meeste missing data:", worst_row)
-# # print(row_missing_counts)
+worst_row = row_missing_counts.idxmax()
+print("Rij met meeste missing data:", worst_row)
+# print(row_missing_counts)
 
-# worst_col = col_missing_counts.idxmax()
-# print("Kolom met meeste missing data:", worst_col)
-# # print(col_missing_counts)
+worst_col = col_missing_counts.idxmax()
+print("Kolom met meeste missing data:", worst_col)
 
-# # missing_positions = data[data == 0.0].stack()
-# # print(missing_positions)
+# Sorteer van groot naar klein
+col_missing_counts_sorted = col_missing_counts.sort_values(ascending=False)
+
+print(col_missing_counts_sorted)
+# print(col_missing_counts)
+
+# missing_positions = data[data == 0.0].stack()
+# print(missing_positions)
 
 #%%
 
-plt.figure(figsize=(12, 6))
-seaborn.boxplot(data=X)
-plt.xticks(rotation=45)
-plt.title("Boxplots of Features")
-plt.show()
+# plt.figure(figsize=(12, 6))
+# seaborn.boxplot(data=X)
+# plt.xticks(rotation=45)
+# plt.title("Boxplots of Features")
+# plt.show()
 
 
 

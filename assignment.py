@@ -28,7 +28,7 @@ print(f"Number of rows after checking for duplicates: {len(data)}")
 
 #%%
 """Checking for missing values"""
-data_missing_values = data.replace('0', np.nan)
+data_missing_values = data.replace('', np.nan)
 missing_values = data[data.isnull().any(axis=1)]
 
 if not missing_values.empty:
