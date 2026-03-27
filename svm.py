@@ -89,13 +89,32 @@ from sklearn.model_selection import train_test_split
 
 data['label_bin'] = LabelEncoder().fit_transform(data['label'])
 print(data[['label', 'label_bin']].head())
+data['label_bin'] = LabelEncoder().fit_transform(data['label'])
+print(data[['label', 'label_bin']].head())
 
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
+def preprocess_data(X):
+    X = X.copy()
+
+    Q1 = X.quantile(0.25)
+    Q3 = X.quantile(0.75)
+    IQR = Q3 - Q1
+
+    outliers = (X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR))
+    X = X.mask(outliers, np.nan)
+
+    X = X.fillna(X.median())
+
+    return X
+
+X_cleaned = preprocess_data(X)
+
+
 # Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X_cleaned, y, test_size=0.2, random_state=42
 )
 
 # Scale features
@@ -103,7 +122,7 @@ scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-print(X.shape, y.shape)
+print(X_cleaned.shape, y.shape)
 
 
 #%%
@@ -169,7 +188,7 @@ param_grid = {"n_neighbors": list(range(1,26,2))}
 #parameters voor svm
 svm_clfs = [
     ("linear", SVC(kernel='linear', C=1.0, gamma='scale', probability=True)),
-    ("poly",   SVC(kernel='poly', degree=5, coef0=1, C=1.0, gamma='scale', probability=True)),
+    ("poly",   SVC(kernel='poly', degree=3, coef0=1, C=1.0, gamma='scale', probability=True)),
     ("rbf",    SVC(kernel='rbf', C=1.0, gamma='scale', probability=True))
 ]
 
