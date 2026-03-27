@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import seaborn as sns
 from sklearn.preprocessing import RobustScaler
 from sklearn.decomposition import PCA
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -9,6 +8,7 @@ from sklearn.manifold import TSNE
 from sklearn.model_selection import train_test_split
 from scipy.stats import shapiro, normaltest, skew, kurtosis
 from sklearn import neighbors
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV, learning_curve
 from sklearn.preprocessing import LabelEncoder
 from sklearn import model_selection, metrics
 import seaborn
@@ -21,7 +21,7 @@ from sklearn import feature_selection
 from sklearn import preprocessing
 from sklearn import neighbors
 from sklearn import svm
-from sklearn import decomposition
+
 
 #%%
 
@@ -51,9 +51,31 @@ X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
 #%%
+# cols_with_missing = [col for col in X.columns if (X[col] == 0.0).any()]
+
+# for col in cols_with_missing:
+#     missing_indicator = (X[col]==0).astype(int)
+#     missing_by_label = pd.DataFrame({
+#         'label': y,
+#         'missing': missing_indicator
+#     })
+
+# plot_data = missing_by_label.groupby('label')['missing'].mean()
+
+# plot_data.plot(kind='bar')
+# plt.ylabel('Fractie missing')
+# plt.title(f'Missingness van {col} per label')
+# plt.ylim(0, 1)
+# plt.show()
+
+#%%
 
 def preprocess_data(X):
     X = X.copy()
+    X = X.mask(X == 0.0, np.nan)  
+    missing_pct = X.isnull().mean() * 100
+    drop_features = missing_pct[missing_pct>50].index
+    X = X.drop(columns=drop_features)
 
     Q1 = X.quantile(0.25)
     Q3 = X.quantile(0.75)
@@ -67,6 +89,9 @@ def preprocess_data(X):
     return X
 
 X_cleaned = preprocess_data(X)
+
+
+
 #%%
 
 scaler = RobustScaler()
@@ -77,7 +102,7 @@ y2 = y.values
 
 # Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
-    X2, y2, test_size=0.2, random_state=42
+    X2, y2, test_size=0.2, random_state=42, stratify=y2
 )
 #%%
 # Create the RFE object and compute a cross-validated score.
@@ -96,11 +121,10 @@ scores = rfecv.cv_results_["mean_test_score"]
 scores_no_first = scores[1:]
 best_index = scores_no_first.argmax() +1
 best_score = scores[best_index]
-best_n_features = best_index + 1  # omdat index bij 0 begint
+best_n_features = best_index + 1
 
 print(best_n_features, best_score)
 
-# Plot number of features VS. cross-validation scores
 plt.figure()
 plt.xlabel("Number of features selected")
 plt.ylabel("Cross validation score (nb of correct classifications)")
@@ -115,13 +139,13 @@ X_train_pca = pca.transform(X_train)
 X_test_pca = pca.transform(X_test)
 
 explained_variance = pca.explained_variance_ratio_
-
+print(explained_variance)
 
 #%%
 
 param_grid = {"n_neighbors": list(range(1,26,2))}
 k_list = list(range(1, 26, 2))
-results = []
+
 best_n_neighbors = []
 all_train = []
 all_test = []
@@ -184,17 +208,19 @@ ax.fill_between(k_list,
                 test_mean + test_std,
                 alpha=0.1, color="g")
 
-ax.plot(k_list, train_mean, 'o-', color="r", label="Training AUC")
-ax.plot(k_list, test_mean, 'o-', color="g", label="Validation AUC")
+ax.plot(k_list, train_mean, 'o-', color="r", label="Training score")
+ax.plot(k_list, test_mean, 'o-', color="g", label="Cross Validation score")
 
 ax.set_xlabel("Number of neighbors (k)")
-ax.set_ylabel("ROC AUC")
+ax.set_ylabel("AUC")
 ax.set_title("KNN learning curve (GridSearchCV)")
 ax.legend()
 
 plt.show()
 
 print(f"The optimal N = {optimal_n}")
+
+#%%
 
 
 #%%
