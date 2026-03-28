@@ -130,23 +130,15 @@ plt.show()
 # Preprocess and split
 X_cleaned = preprocess_data(X)
 
-X_train_cleaned, X_test_cleaned, y_train_cleaned, y_test_cleaned = train_test_split(
+X_train_cleaned, X_test_cleaned, y_train, y_test = train_test_split(
     X_cleaned, y.values, test_size=0.2, random_state=42, stratify=y.values
 )
-
-# Ensure they are numpy arrays (not pandas Series)
-y_train_cleaned = np.asarray(y_train_cleaned)
-y_test_cleaned = np.asarray(y_test_cleaned)
 
 # Scale train/test
 scaler_cleaned = RobustScaler()
 X_train = scaler_cleaned.fit_transform(X_train_cleaned)
 X_test = scaler_cleaned.transform(X_test_cleaned)
 
-# Setup scalers for different model evaluations
-scaler_full = RobustScaler()
-X_scaled_full = scaler_full.fit_transform(X)
-y_array = y.values
 
 cv_10fold = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 
@@ -188,15 +180,15 @@ for name, model, param_grid in models_and_grids:
         verbose=1
     )
 
-    grid.fit(X_scaled_full, y_array)
+    grid.fit(X_train, y_train)
 
     print("Best parameters:", grid.best_params_)
     best_svm_models.append((name, grid.best_params_))
 
     results = []
-    for train_index, test_index in cv_10fold.split(X_scaled_full, y_array):
-        X_cv_train, X_cv_test = X_scaled_full[train_index], X_scaled_full[test_index]
-        y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
+    for train_index, test_index in cv_10fold.split(X_train, y_train):
+        X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
+        y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
 
         best_model = grid.best_estimator_
         best_model.fit(X_cv_train, y_cv_train)
@@ -227,42 +219,42 @@ svmpoly = SVC(kernel='poly', degree=3, gamma='scale', probability=True)
 
 print("\nLearning curves:")
 fig, ax = plt.subplots(figsize=(8, 6))
-plot_learning_curve(svmlin, "Learning Curve: SVM Linear", X_train, y_train_cleaned, ax, cv=10)
+plot_learning_curve(svmlin, "Learning Curve: SVM Linear", X_train, y_train, ax, cv=10)
 plt.show()
 
 fig, ax = plt.subplots(figsize=(8, 6))
-plot_learning_curve(svmpoly, "Learning Curve: SVM Poly", X_train, y_train_cleaned, ax, cv=10)
+plot_learning_curve(svmpoly, "Learning Curve: SVM Poly", X_train, y_train, ax, cv=10)
 plt.show()
 
 fig, ax = plt.subplots(figsize=(8, 6))
-plot_learning_curve(svmrbf, "Learning Curve: SVM RBF", X_train, y_train_cleaned, ax, cv=10)
+plot_learning_curve(svmrbf, "Learning Curve: SVM RBF", X_train, y_train, ax, cv=10)
 plt.show()
 
 for name, clf in clsfs:
-    clf.fit(X_train, y_train_cleaned)
+    clf.fit(X_train, y_train)
 
     y_test_pred = clf.predict(X_test)
     y_test_probs = clf.predict_proba(X_test)
 
-    tn, fp, fn, tp = confusion_matrix(y_test_cleaned, y_test_pred).ravel()
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
 
     print(f"\n{name}")
-    print("accuracy:", accuracy_score(y_test_cleaned, y_test_pred))
-    print("sensitivity:", recall_score(y_test_cleaned, y_test_pred))
+    print("accuracy:", accuracy_score(y_test, y_test_pred))
+    print("sensitivity:", recall_score(y_test, y_test_pred))
     print("specificity:", tn / (tn + fp))
 
-    plot_roc_curve(y_test_probs, y_test_cleaned)
+    plot_roc_curve(y_test_probs, y_test)
 
 #%% KNN
 print("\n--- KNN ---")
 
-# classifications
+# Feature selection with RFECV on training data
 rfecv = feature_selection.RFECV(
-    estimator=SVC, 
+    estimator=SVC(kernel='linear'), 
     step=1,
     cv=model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
     scoring='roc_auc')
-rfecv.fit(X2, y2)
+rfecv.fit(X_train, y_train)
 
 scores = rfecv.cv_results_["mean_test_score"]
 
@@ -287,10 +279,10 @@ best_n_neighbors = []
 all_train = []
 all_test = []
 
-for train_index, test_index in cv_10fold.split(X_train, y_train_cleaned):
+for train_index, test_index in cv_10fold.split(X_train, y_train):
 
     X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
-    y_cv_train, y_cv_test = y_train_cleaned[train_index], y_train_cleaned[test_index]
+    y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
 
     knn = KNeighborsClassifier()
     cv_inner = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
@@ -353,14 +345,14 @@ plt.show()
 print(f"The optimal N = {optimal_n}")
 
 best_knn = KNeighborsClassifier(n_neighbors=optimal_n)
-best_knn.fit(X_train, y_train_cleaned)
+best_knn.fit(X_train, y_train)
 
-score_train = best_knn.score(X_train, y_train_cleaned)
-score_test = best_knn.score(X_test, y_test_cleaned)
+score_train = best_knn.score(X_train, y_train)
+score_test = best_knn.score(X_test, y_test)
 
 y_pred_proba = best_knn.predict_proba(X_test)
 
-fpr, tpr, thresholds = metrics.roc_curve(y_test_cleaned, y_pred_proba[:, 1])
+fpr, tpr, thresholds = metrics.roc_curve(y_test, y_pred_proba[:, 1])
 roc_auc = metrics.auc(fpr, tpr)
 
 plt.figure()
@@ -407,7 +399,7 @@ random_search = RandomizedSearchCV(
 )
 
 print("Tuning Random Forest with RandomizedSearchCV...")
-random_search.fit(X_train, y_train_cleaned)
+random_search.fit(X_train, y_train)
 
 best_rf = random_search.best_estimator_
 print("Best parameters:", random_search.best_params_)
@@ -418,7 +410,7 @@ plot_learning_curve(
     estimator=best_rf,
     title="Learning Curve (Random Forest)",
     X=X_train,
-    y=y_train_cleaned,
+    y=y_train,
     axes=ax,
     cv=5,
     n_jobs=-1,
@@ -429,27 +421,26 @@ plt.grid()
 plt.show()
 
 y_test_probs = best_rf.predict_proba(X_test)
-auc_test = roc_auc_score(y_test_cleaned, y_test_probs[:, 1])
+auc_test = roc_auc_score(y_test, y_test_probs[:, 1])
 
 print("Final Test AUC:", auc_test)
 
 y_test_pred = best_rf.predict(X_test)
-tn, fp, fn, tp = confusion_matrix(y_test_cleaned, y_test_pred).ravel()
-accuracy = accuracy_score(y_test_cleaned, y_test_pred)
-sensitivity = recall_score(y_test_cleaned, y_test_pred)
+tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+accuracy = accuracy_score(y_test, y_test_pred)
+sensitivity = recall_score(y_test, y_test_pred)
 specificity = tn / (tn + fp)
 print("accuracy:", accuracy)
 print("sensitivity:", sensitivity)
 print("specificity:", specificity)
 
-plot_roc_curve(y_test_probs, y_test_cleaned)
+plot_roc_curve(y_test_probs, y_test)
 
 #%% XGBoost
 print("\n--- XGBoost ---")
 
-# XGBoost uses a Pipeline with scaling inside
+# XGBoost (data already scaled)
 pipe = Pipeline([
-    ("scaler", RobustScaler()),
     ("model", XGBClassifier(
         n_estimators=100,
         max_depth=2,
@@ -483,7 +474,7 @@ grid_search = GridSearchCV(
 )
 
 print("XGBoost - tuning with GridSearchCV...")
-grid_search.fit(X_train_cleaned, y_train_cleaned)
+grid_search.fit(X_train, y_train)
 
 print("Best parameters:")
 print(grid_search.best_params_)
@@ -552,8 +543,8 @@ fig, ax = plt.subplots(figsize=(7,5))
 plot_learning_curve_xgb( 
     best_xgb, 
     title="Learning Curve - XGBoost", 
-    X=X_train_cleaned, 
-    y=y_train_cleaned, 
+    X=X_train, 
+    y=y_train, 
     axes=ax, 
     cv=cv_xgb, 
     n_jobs=-1, 
@@ -562,24 +553,24 @@ plt.show()
 
 cv_scores = cross_val_score(
     best_xgb,
-    X_train_cleaned,
-    y_train_cleaned,
+    X_train,
+    y_train,
     cv=cv_xgb,
     scoring="roc_auc"
 )
 
 print(f"CV AUC: {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
 
-best_xgb.fit(X_train_cleaned, y_train_cleaned)
+best_xgb.fit(X_train, y_train)
 
-y_pred = best_xgb.predict(X_test_cleaned)
-acc = accuracy_score(y_test_cleaned, y_pred)
+y_pred = best_xgb.predict(X_test)
+acc = accuracy_score(y_test, y_pred)
 
 print(f"Test Accuracy: {acc:.3f}")
 
-y_proba = best_xgb.predict_proba(X_test_cleaned)[:, 1]
+y_proba = best_xgb.predict_proba(X_test)[:, 1]
 
-fpr, tpr, _ = roc_curve(y_test_cleaned, y_proba)
+fpr, tpr, _ = roc_curve(y_test, y_proba)
 roc_auc = auc(fpr, tpr)
 
 plt.figure(figsize=(6,6))
