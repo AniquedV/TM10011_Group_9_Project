@@ -256,6 +256,30 @@ for name, clf in clsfs:
 #%% KNN
 print("\n--- KNN ---")
 
+# classifications
+rfecv = feature_selection.RFECV(
+    estimator=svc, 
+    step=1,
+    cv=model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
+    scoring='roc_auc')
+rfecv.fit(X2, y2)
+
+scores = rfecv.cv_results_["mean_test_score"]
+
+scores_no_first = scores[1:]
+best_index = scores_no_first.argmax() +1
+best_score = scores[best_index]
+best_n_features = best_index + 1
+
+print(best_n_features, best_score)
+
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (nb of correct classifications)")
+plt.plot(range(1, len(rfecv.cv_results_["mean_test_score"]) + 1), rfecv.cv_results_["mean_test_score"])
+plt.show()
+
+
 param_grid = {"n_neighbors": list(range(1, 26, 2))}
 k_list = list(range(1, 26, 2))
 
