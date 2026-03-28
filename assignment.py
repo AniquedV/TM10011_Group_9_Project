@@ -613,8 +613,8 @@ print("="*70)
 # Create summary dataframe from collected results
 summary_df = pd.DataFrame(results_summary)
 
-# Round numeric columns to 2 decimals
-summary_df = summary_df.round(2)
+# Round numeric columns to 3 decimals
+summary_df = summary_df.round(3)
 
 # Print table
 print("\n")
