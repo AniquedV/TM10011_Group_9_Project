@@ -147,6 +147,9 @@ print(f"Training set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}"
 #%% SVM
 print("\n--- SVM ---")
 
+# Store results for summary
+results_summary = []
+
 # SVM hyperparameter tuning
 models_and_grids = [
     ("linear", SVC(probability=True), {
@@ -214,13 +217,28 @@ for name, clf in clsfs:
 
     y_test_pred = clf.predict(X_test)
     y_test_probs = clf.predict_proba(X_test)
+    
+    auc_test = roc_auc_score(y_test, y_test_probs[:, 1])
 
     tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    accuracy = accuracy_score(y_test, y_test_pred)
+    sensitivity = recall_score(y_test, y_test_pred)
+    specificity = tn / (tn + fp)
 
     print(f"\n{name}")
-    print("accuracy:", accuracy_score(y_test, y_test_pred))
-    print("sensitivity:", recall_score(y_test, y_test_pred))
-    print("specificity:", tn / (tn + fp))
+    print(f"AUC: {auc_test:.3f}")
+    print(f"accuracy: {accuracy:.3f}")
+    print(f"sensitivity: {sensitivity:.3f}")
+    print(f"specificity: {specificity:.3f}")
+    
+    # Store results
+    results_summary.append({
+        'Model': name,
+        'AUC': auc_test,
+        'Accuracy': accuracy,
+        'Sensitivity': sensitivity,
+        'Specificity': specificity
+    })
 
     plot_roc_curve(y_test_probs, y_test)
 
@@ -326,10 +344,14 @@ print(f"The optimal N = {optimal_n}")
 best_knn = KNeighborsClassifier(n_neighbors=optimal_n)
 best_knn.fit(X_train, y_train)
 
-score_train = best_knn.score(X_train, y_train)
-score_test = best_knn.score(X_test, y_test)
-
 y_pred_proba = best_knn.predict_proba(X_test)
+y_pred = best_knn.predict(X_test)
+
+auc_test = roc_auc_score(y_test, y_pred_proba[:, 1])
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+accuracy = accuracy_score(y_test, y_pred)
+sensitivity = recall_score(y_test, y_pred)
+specificity = tn / (tn + fp)
 
 fpr, tpr, thresholds = metrics.roc_curve(y_test, y_pred_proba[:, 1])
 roc_auc = metrics.auc(fpr, tpr)
@@ -343,13 +365,16 @@ plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic example')
+plt.title('KNN ROC Curve')
 plt.legend(loc="lower right")
 plt.show()
 
 
-print(f"Training accuracy: {score_train:.3f}")
-print(f"Test accuracy: {score_test:.3f}")
+print(f"\nKNN")
+print(f"AUC: {auc_test:.3f}")
+print(f"accuracy: {accuracy:.3f}")
+print(f"sensitivity: {sensitivity:.3f}")
+print(f"specificity: {specificity:.3f}")
 
 #%% Random Forest
 print("\n--- Random Forest ---")
@@ -402,16 +427,26 @@ plt.show()
 y_test_probs = best_rf.predict_proba(X_test)
 auc_test = roc_auc_score(y_test, y_test_probs[:, 1])
 
-print("Final Test AUC:", auc_test)
-
 y_test_pred = best_rf.predict(X_test)
 tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
 accuracy = accuracy_score(y_test, y_test_pred)
 sensitivity = recall_score(y_test, y_test_pred)
 specificity = tn / (tn + fp)
-print("accuracy:", accuracy)
-print("sensitivity:", sensitivity)
-print("specificity:", specificity)
+
+print(f"\nRandom Forest Test Metrics:")
+print(f"AUC: {auc_test:.3f}")
+print(f"accuracy: {accuracy:.3f}")
+print(f"sensitivity: {sensitivity:.3f}")
+print(f"specificity: {specificity:.3f}")
+
+# Store results
+results_summary.append({
+    'Model': 'Random Forest',
+    'AUC': auc_test,
+    'Accuracy': accuracy,
+    'Sensitivity': sensitivity,
+    'Specificity': specificity
+})
 
 plot_roc_curve(y_test_probs, y_test)
 
@@ -539,15 +574,18 @@ cv_scores = cross_val_score(
 )
 
 print(f"CV AUC: {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+print("\n--- XGBoost Test Metrics ---")
 
 best_xgb.fit(X_train, y_train)
 
 y_pred = best_xgb.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-
-print(f"Test Accuracy: {acc:.3f}")
-
 y_proba = best_xgb.predict_proba(X_test)[:, 1]
+
+auc_test = roc_auc_score(y_test, y_proba)
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+accuracy = accuracy_score(y_test, y_pred)
+sensitivity = recall_score(y_test, y_pred)
+specificity = tn / (tn + fp)
 
 fpr, tpr, _ = roc_curve(y_test, y_proba)
 roc_auc = auc(fpr, tpr)
@@ -562,9 +600,78 @@ plt.legend()
 plt.grid()
 plt.show()
 
-print(f"Test AUC: {roc_auc:.3f}")
+print(f"\nXGBoost Test Metrics:")
+print(f"AUC: {auc_test:.3f}")
+print(f"accuracy: {accuracy:.3f}")
+print(f"sensitivity: {sensitivity:.3f}")
+print(f"specificity: {specificity:.3f}")
+
+# Store results
+results_summary.append({
+    'Model': 'XGBoost',
+    'AUC': auc_test,
+    'Accuracy': accuracy,
+    'Sensitivity': sensitivity,
+    'Specificity': specificity
+})
+# Store results
+results_summary.append({
+    'Model': 'KNN',
+    'AUC': auc_test,
+    'Accuracy': accuracy,
+    'Sensitivity': sensitivity,
+    'Specificity': specificity
+})
+#%% Summary Table
+print("\n" + "="*70)
+print("FINAL MODEL COMPARISON")
+print("="*70)
+
+# Create summary dataframe from collected results
+summary_df = pd.DataFrame(results_summary)
+
+# Round numeric columns to 2 decimals
+summary_df = summary_df.round(2)
+
+# Print table
+print("\n")
+print(summary_df.to_string(index=False))
+
+# Plot table
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.axis('off')
+table = ax.table(cellText=summary_df.values, 
+                colLabels=summary_df.columns,
+                cellLoc='center',
+                loc='center',
+                colWidths=[0.25, 0.13, 0.15, 0.15, 0.15])
+
+table.auto_set_font_size(False)
+table.set_fontsize(10)
+table.scale(1, 2)
+
+# Style header
+for i in range(len(summary_df.columns)):
+    table[(0, i)].set_facecolor('#40466e')
+    table[(0, i)].set_text_props(weight='bold', color='white')
+
+# Alternate row colors
+for i in range(1, len(summary_df) + 1):
+    for j in range(len(summary_df.columns)):
+        if i % 2 == 0:
+            table[(i, j)].set_facecolor('#f0f0f0')
+        else:
+            table[(i, j)].set_facecolor('#ffffff')
+
+plt.title('Model Comparison Summary', fontsize=14, fontweight='bold', pad=20)
+plt.tight_layout()
+plt.show()
+
+print("="*70)
 
 
 
 
 
+
+# %%
