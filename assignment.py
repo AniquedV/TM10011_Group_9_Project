@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import seaborn as sns
+import seaborn
 
 from sklearn.preprocessing import RobustScaler, LabelEncoder
 from sklearn.decomposition import PCA
@@ -33,6 +34,22 @@ from sklearn import model_selection, metrics
 
 import warnings
 warnings.filterwarnings('ignore')
+
+# Heatmap of possible missing data
+X_zeros = X.replace(0.0, np.nan)  
+
+col_missing_counts = (X == 0.0).sum()
+col_missing_counts_sorted = col_missing_counts.sort_values(ascending=False)
+print(col_missing_counts_sorted)
+
+# HEATMAP PLOTTEN
+plt.figure(figsize=(12,6))
+seaborn.heatmap(X_zeros.isnull(), cbar=False, xticklabels=False, yticklabels=False)
+plt.title("Missing data heatmap")
+plt.xlabel("Features")
+plt.ylabel("Samples")
+plt.show()
+
 
 #%% Helper functions
 
@@ -56,7 +73,7 @@ def plot_learning_curve(estimator, title, X, y, axes, ylim=None, cv=None,
     if ylim is not None:
         axes.set_ylim(*ylim)
     axes.set_xlabel("Training examples")
-    axes.set_ylabel("Score")
+    axes.set_ylabel("AUC Score")
 
     train_sizes, train_scores, test_scores = learning_curve(
         estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes
@@ -455,14 +472,14 @@ def plot_learning_curve_xgb(estimator, title, X, y,
                         cv=None, 
                         n_jobs=None, 
                         train_sizes=np.linspace(0.1,1.0,5),
-                        scoring='accuracy'):
+                        scoring='roc_auc'):
     axes.set_title(title)
 
     if ylim is not None:
         axes.set_ylim(*ylim)
 
     axes.set_xlabel("Training examples")
-    axes.set_ylabel("score")
+    axes.set_ylabel("AUC score")
 
     train_sizes, train_scores, test_scores = learning_curve(
         estimator,
@@ -516,7 +533,7 @@ plot_learning_curve_xgb(
     axes=ax, 
     cv=cv_xgb, 
     n_jobs=-1, 
-    scoring='accuracy' ) 
+    scoring='roc_auc' ) 
 plt.show()
 
 cv_scores = cross_val_score(
