@@ -29,6 +29,7 @@ from sklearn.model_selection import train_test_split
 from scipy.stats import shapiro, normaltest, skew, kurtosis
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import GridSearchCV
 from sklearn import model_selection, metrics
 import seaborn
 
@@ -117,6 +118,7 @@ X_train, X_test, y_train, y_test = train_test_split(
     X_cleaned, y, test_size=0.2, random_state=42
 )
 
+
 # Scale features
 scaler = RobustScaler()
 X_train_scaled = scaler.fit_transform(X_train)
@@ -185,63 +187,74 @@ results = []
 
 param_grid = {"n_neighbors": list(range(1,26,2))}
 
-#parameters voor svm
-svm_clfs = [
-    ("linear", SVC(kernel='linear', C=1.0, gamma='scale', probability=True)),
-    ("poly",   SVC(kernel='poly', degree=3, coef0=1, C=1.0, gamma='scale', probability=True)),
-    ("rbf",    SVC(kernel='rbf', C=1.0, gamma='scale', probability=True))
+
+models_and_grids = [
+    ("linear", SVC(probability=True), {
+        "kernel": ["linear"],
+        "C": [0.1, 1, 10]
+    }),
+    ("rbf", SVC(probability=True), {
+        "kernel": ["rbf"],
+        "C": [0.1, 1, 10],
+        "gamma": ["scale", 0.01, 0.1]
+    }),
+    ("poly", SVC(probability=True), {
+        "kernel": ["poly"],
+        "C": [0.1, 1, 10],
+        "degree": [2, 3, 5],
+        "coef0": [0, 1]
+    })
 ]
 
-for name, base_clf in svm_clfs:
-    print(f"{name} SVM")
+best_models = []
+
+for name, model, param_grid in models_and_grids:
+    print(f"\n{name} SVM - tuning")
+
+    grid = GridSearchCV(
+        estimator=model,
+        param_grid=param_grid,
+        cv=cv_10fold,
+        scoring="roc_auc",
+        n_jobs=-1,
+        verbose=1
+    )
+
+    grid.fit(X_scaled, y_array)
+
+    print("Best parameters:", grid.best_params_)
+    best_model = grid.best_estimator_
+    best_models.append((name, best_model))
+
     results = []
-    # Loop over the folds
     for train_index, test_index in cv_10fold.split(X_scaled, y_array):
-        # Split the data properly
         X_cv_train, X_cv_test = X_scaled[train_index], X_scaled[test_index]
         y_cv_train, y_cv_test = y_array[train_index], y_array[test_index]
 
-        # Create a grid search to find the optimal k using a gridsearch and 10-fold cross validation
-        # Same as above
-        # SVM versions, can be changed under parameters for svm
-        clf = base_clf
-        clf.fit(X_cv_train, y_cv_train)
+        best_model.fit(X_cv_train, y_cv_train)
 
-
-        # Test the classifier on the test data
-        y_probs = clf.predict_proba(X_cv_test)[:,1]
-
-        # Get the auc
+        y_probs = best_model.predict_proba(X_cv_test)[:,1]
         auc = metrics.roc_auc_score(y_cv_test, y_probs)
-        results.append({
-            'auc': auc,
-            'set': 'test'
-        })
+        results.append({'auc': auc, 'set': 'test'})
 
-        # Test the classifier on the validation data
-        y_train_probs = clf.predict_proba(X_cv_train)[:,1]
+        y_train_probs = best_model.predict_proba(X_cv_train)[:,1]
         auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
-        results.append({
-            'auc': auc_train,
-            'set': 'train'
-        })
+        results.append({'auc': auc_train, 'set': 'train'})
 
-
-    # Convert results to DataFrame and plot
     results_df = pd.DataFrame(results)
     sns.boxplot(y='auc', x='set', data=results_df)
-    plt.title(f"{name} SVM")
+    plt.title(f"Tuned {name} SVM")
     plt.show()
 
 #%% learning curve en roc curve 
 from sklearn.model_selection import learning_curve
 from sklearn.metrics import roc_curve, auc
 
-#reset clsfs, as it got changed trying hyperparemters for poly SVM
+#fill in hyperparameters found with gridsearchcv
 clsfs = [
-    ("SVM linear", svmlin),
-    ("SVM poly", svmpoly),
-    ("SVM rbf", svmrbf)
+    ("SVM linear", SVC(kernel='linear', C=0.1, gamma='scale', probability=True)),
+    ("SVM poly",   SVC(kernel='poly', C=10, coef0=1, degree=2, gamma='scale', probability=True)),
+    ("SVM rbf",    SVC(kernel='rbf', C=10, gamma='scale', probability=True))
 ]
 
 print(clsfs)
