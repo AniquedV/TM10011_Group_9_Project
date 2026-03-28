@@ -185,27 +185,6 @@ for name, model, param_grid in models_and_grids:
     print("Best parameters:", grid.best_params_)
     best_svm_models.append((name, grid.best_params_))
 
-    results = []
-    for train_index, test_index in cv_10fold.split(X_train, y_train):
-        X_cv_train, X_cv_test = X_train[train_index], X_train[test_index]
-        y_cv_train, y_cv_test = y_train[train_index], y_train[test_index]
-
-        best_model = grid.best_estimator_
-        best_model.fit(X_cv_train, y_cv_train)
-
-        y_probs = best_model.predict_proba(X_cv_test)[:, 1]
-        auc_score = metrics.roc_auc_score(y_cv_test, y_probs)
-        results.append({'auc': auc_score, 'set': 'test'})
-
-        y_train_probs = best_model.predict_proba(X_cv_train)[:, 1]
-        auc_train = metrics.roc_auc_score(y_cv_train, y_train_probs)
-        results.append({'auc': auc_train, 'set': 'train'})
-
-    results_df = pd.DataFrame(results)
-    sns.boxplot(y='auc', x='set', data=results_df)
-    plt.title(f"Tuned {name} SVM")
-    plt.show()
-
 # SVM uses raw X with fresh scaler
 clsfs = [
     ("SVM linear", SVC(kernel='linear', C=0.1, gamma='scale', probability=True)),
