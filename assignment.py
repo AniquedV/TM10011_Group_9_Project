@@ -258,7 +258,7 @@ for train_index, test_index in cv_10fold.split(X_train, y_train_cleaned):
         knn,
         param_grid,
         cv=cv_inner,
-        scoring='accuracy',
+        scoring='roc_auc',
         return_train_score=True,
         n_jobs=-1
     )
@@ -303,7 +303,7 @@ ax.plot(k_list, train_mean, 'o-', color="r", label="Training score")
 ax.plot(k_list, test_mean, 'o-', color="g", label="Cross Validation score")
 
 ax.set_xlabel("Number of neighbors (k)")
-ax.set_ylabel("Accuracy")
+ax.set_ylabel("AUC score")
 ax.set_title("KNN Learning Curve (GridSearchCV)")
 ax.legend()
 
@@ -323,13 +323,18 @@ fpr, tpr, thresholds = metrics.roc_curve(y_test_cleaned, y_pred_proba[:, 1])
 roc_auc = metrics.auc(fpr, tpr)
 
 plt.figure()
-plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
-plt.plot([0, 1], [0, 1], 'k--', label='No Skill')
+lw=2
+plt.plot(fpr, tpr, color='darkorange',
+            lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('ROC Curve for KNN Classification')
-plt.legend()
+plt.title('Receiver operating characteristic example')
+plt.legend(loc="lower right")
 plt.show()
+
 
 print(f"Training accuracy: {score_train:.3f}")
 print(f"Test accuracy: {score_test:.3f}")
