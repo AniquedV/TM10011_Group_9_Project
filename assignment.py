@@ -416,21 +416,7 @@ accuracy = accuracy_score(y_test, y_pred)
 sensitivity = recall_score(y_test, y_pred)
 specificity = tn / (tn + fp)
 
-fpr, tpr, thresholds = metrics.roc_curve(y_test, y_pred_proba[:, 1])
-roc_auc = metrics.auc(fpr, tpr)
-
-plt.figure()
-lw=2
-plt.plot(fpr, tpr, color='darkorange',
-            lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
-plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('KNN ROC Curve')
-plt.legend(loc="lower right")
-plt.show()
+plot_roc_curve(y_pred_proba, y_test)
 
 
 print(f"\nKNN")
@@ -438,6 +424,15 @@ print(f"AUC: {auc_test:.3f}")
 print(f"accuracy: {accuracy:.3f}")
 print(f"sensitivity: {sensitivity:.3f}")
 print(f"specificity: {specificity:.3f}")
+
+# Store results
+results_summary.append({
+    'Model': 'KNN',
+    'AUC': auc_test,
+    'Accuracy': accuracy,
+    'Sensitivity': sensitivity,
+    'Specificity': specificity
+})
 
 #%% Random Forest
 print("\n--- Random Forest ---")
@@ -558,74 +553,18 @@ print(grid_search.best_params_)
 
 best_xgb = grid_search.best_estimator_
 
-def plot_learning_curve_xgb(estimator, title, X, y, 
-                        axes, 
-                        ylim=None, 
-                        cv=None, 
-                        n_jobs=None, 
-                        train_sizes=np.linspace(0.1,1.0,5),
-                        scoring='roc_auc'):
-    axes.set_title(title)
-
-    if ylim is not None:
-        axes.set_ylim(*ylim)
-
-    axes.set_xlabel("Training examples")
-    axes.set_ylabel("AUC score")
-
-    train_sizes, train_scores, test_scores = learning_curve(
-        estimator,
-        X,
-        y,
-        cv=cv,
-        scoring=scoring,
-        n_jobs=-1,
-    )
-
-    train_mean = np.mean(train_scores, axis=1)
-    train_std = np.std(train_scores, axis=1)
-
-    test_mean = np.mean(test_scores,axis=1)
-    test_std = np.std(test_scores, axis=1)
-
-    axes.grid()
-
-    axes.fill_between(
-        train_sizes,
-        train_mean - train_std,
-        train_mean + train_std,
-        alpha=0.1,
-        color = "r"
-    )
-
-    axes.fill_between(
-        train_sizes,
-        test_mean - test_std,
-        test_mean + test_std,
-        alpha = 0.1,
-        color = "g"
-    )
-
-    axes.plot(train_sizes, train_mean, 'o-', color="r",
-              label = "Training score")
-    axes.plot(train_sizes, test_mean, 'o-', color="g",
-              label = "Cross-validation score")
-    
-    axes.legend(loc="best")
-
-    return axes
-
 fig, ax = plt.subplots(figsize=(7,5))
 
-plot_learning_curve_xgb( 
+plot_learning_curve(
     best_xgb, 
     title="Learning Curve - XGBoost", 
     X=X_train, 
     y=y_train, 
     axes=ax, 
     cv=cv_xgb, 
-    n_jobs=-1, 
-    scoring='roc_auc' ) 
+    n_jobs=-1,
+    train_sizes=np.linspace(0.1, 1.0, 5)
+)
 plt.show()
 
 cv_scores = cross_val_score(
@@ -642,26 +581,15 @@ print("\n--- XGBoost Test Metrics ---")
 best_xgb.fit(X_train, y_train)
 
 y_pred = best_xgb.predict(X_test)
-y_proba = best_xgb.predict_proba(X_test)[:, 1]
+y_proba = best_xgb.predict_proba(X_test)
 
-auc_test = roc_auc_score(y_test, y_proba)
+auc_test = roc_auc_score(y_test, y_proba[:, 1])
 tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
 accuracy = accuracy_score(y_test, y_pred)
 sensitivity = recall_score(y_test, y_pred)
 specificity = tn / (tn + fp)
 
-fpr, tpr, _ = roc_curve(y_test, y_proba)
-roc_auc = auc(fpr, tpr)
-
-plt.figure(figsize=(6,6))
-plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
-plt.plot([0,1], [0,1], "--")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC Curve - XGBoost")
-plt.legend()
-plt.grid()
-plt.show()
+plot_roc_curve(y_proba, y_test)
 
 print(f"\nXGBoost Test Metrics:")
 print(f"AUC: {auc_test:.3f}")
@@ -672,14 +600,6 @@ print(f"specificity: {specificity:.3f}")
 # Store results
 results_summary.append({
     'Model': 'XGBoost',
-    'AUC': auc_test,
-    'Accuracy': accuracy,
-    'Sensitivity': sensitivity,
-    'Specificity': specificity
-})
-# Store results
-results_summary.append({
-    'Model': 'KNN',
     'AUC': auc_test,
     'Accuracy': accuracy,
     'Sensitivity': sensitivity,
@@ -731,10 +651,4 @@ plt.tight_layout()
 plt.show()
 
 print("="*70)
-
-
-
-
-
-
 # %%
