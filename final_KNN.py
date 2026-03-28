@@ -50,22 +50,33 @@ print(data[['label', 'label_bin']].head())
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
 
+X_zeros = X.replace(0.0, np.nan)  
+
+col_missing_counts = (X == 0.0).sum()
+col_missing_counts_sorted = col_missing_counts.sort_values(ascending=False)
+print(col_missing_counts_sorted)
+
+# HEATMAP PLOTTEN
+plt.figure(figsize=(12,6))
+seaborn.heatmap(X_zeros.isnull(), cbar=False)
+# seaborn.heatmap(X_zeros.isnull(), cbar=False, xticklabels=False, yticklabels=False)
+plt.title("Missing data heatmap")
+plt.xlabel("Features")
+plt.ylabel("Samples")
+plt.show()
+
+
 
 #%%
 
 def preprocess_data(X):
     X = X.copy()
-    # X = X.mask(X == 0.0, np.nan)  
-    # missing_pct = X.isnull().mean() * 100
-    # drop_features = missing_pct[missing_pct>50].index
-    # X = X.drop(columns=drop_features)
-
     Q1 = X.quantile(0.25)
     Q3 = X.quantile(0.75)
     IQR = Q3 - Q1
 
     outliers = (X < (Q1 - 1.5 * IQR)) | (X > (Q3 + 1.5 * IQR))
-    X = X.mask(outliers, np.nan)
+    X = X.replace(outliers, np.nan)
 
     X = X.fillna(X.median())
 
