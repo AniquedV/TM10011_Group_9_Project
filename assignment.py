@@ -31,25 +31,10 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 from sklearn import model_selection, metrics
+from sklearn import feature_selection
 
 import warnings
 warnings.filterwarnings('ignore')
-
-# Heatmap of possible missing data
-X_zeros = X.replace(0.0, np.nan)  
-
-col_missing_counts = (X == 0.0).sum()
-col_missing_counts_sorted = col_missing_counts.sort_values(ascending=False)
-print(col_missing_counts_sorted)
-
-# HEATMAP PLOTTEN
-plt.figure(figsize=(12,6))
-seaborn.heatmap(X_zeros.isnull(), cbar=False, xticklabels=False, yticklabels=False)
-plt.title("Missing data heatmap")
-plt.xlabel("Features")
-plt.ylabel("Samples")
-plt.show()
-
 
 #%% Helper functions
 
@@ -126,6 +111,21 @@ print(data[['label', 'label_bin']].head())
 
 X = data.drop(columns=['label', 'label_bin'])
 y = data['label_bin']
+
+# Heatmap of possible missing data
+X_zeros = X.replace(0.0, np.nan)  
+
+col_missing_counts = (X == 0.0).sum()
+col_missing_counts_sorted = col_missing_counts.sort_values(ascending=False)
+print(col_missing_counts_sorted)
+
+# HEATMAP PLOTTEN
+plt.figure(figsize=(12,6))
+seaborn.heatmap(X_zeros.isnull(), cbar=False, xticklabels=False, yticklabels=False)
+plt.title("Missing data heatmap")
+plt.xlabel("Features")
+plt.ylabel("Samples")
+plt.show()
 
 # Preprocess and split
 X_cleaned = preprocess_data(X)
@@ -258,7 +258,7 @@ print("\n--- KNN ---")
 
 # classifications
 rfecv = feature_selection.RFECV(
-    estimator=svc, 
+    estimator=SVC, 
     step=1,
     cv=model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
     scoring='roc_auc')
